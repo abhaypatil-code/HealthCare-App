@@ -12,6 +12,7 @@ env/
 env.bak/
 env/bin/activate
 
+node_modules/
 # IDE and editor files
 .idea/
 .vscode/
