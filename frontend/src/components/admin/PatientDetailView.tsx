@@ -17,16 +17,18 @@ import { PatientUser } from '@/types';
 import AssessmentDashboard from './AssessmentDashboard';
 import RiskBadge from './RiskBadge';
 import ConsultationModal from './ConsultationModal';
+import EditPatientModal from './EditPatientModal'; // <-- ADDED: Import Edit modal
 import { toast } from 'sonner';
-import { saveAs } from 'file-saver'; // Import the new dependency
+import usePdfDownload from '@/hooks/usePdfDownload'; // <-- FIX: Use hook
 
 const PatientDetailView: React.FC = () => {
   const { patientId } = useParams<{ patientId: string }>();
   const [patient, setPatient] = useState<PatientUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+  const [isConsultModalOpen, setIsConsultModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false); // <-- ADDED: State for Edit modal
+  const { isDownloading, downloadPdf } = usePdfDownload(); // <-- FIX: Use hook
 
   const fetchPatient = async () => {
     if (!patientId) return;
@@ -49,56 +51,28 @@ const PatientDetailView: React.FC = () => {
   
   // Callback to refresh data after an assessment is saved
   const onAssessmentUpdate = () => {
-    toast.success("Assessments updated", { description: "Patient data is being refreshed." });
+    toast.info("Assessment saved.", { description: "Patient data is being refreshed..." });
     fetchPatient();
   };
   
   // Callback for when consultation is booked
   const onConsultationBooked = () => {
-    setIsModalOpen(false);
+    setIsConsultModalOpen(false);
     toast.success("Consultation Booked", { description: "The consultation has been added to the patient's file." });
     fetchPatient(); // Refresh patient data to show new consultation
   };
 
-  /**
-   * --- NEW: Handle PDF Report Download ---
-   * Fulfills MVP: "Download/share profile (selective section export to PDF)"
-   */
-  const handleDownloadReport = async () => {
-    if (!patientId) return;
-    
-    setIsDownloadingPdf(true);
-    toast.info("Generating PDF report...", { id: 'pdf-toast' });
-    
-    try {
-      // 1. Define sections to include (as per MVP)
-      const reportOptions = {
-        include_demographics: true,
-        include_risk_summary: true,
-        include_recommendations: true,
-      };
+  // --- ADDED: Callback for when patient is updated ---
+  const onPatientUpdated = () => {
+    setIsEditModalOpen(false);
+    toast.success("Patient Updated", { description: "Patient details have been saved." });
+    fetchPatient(); // Refresh patient data
+  };
 
-      // 2. Call the API
-      const response = await apiClient.post(
-        `/reports/patient/${patientId}/download`,
-        reportOptions,
-        {
-          responseType: 'blob', // <-- IMPORTANT: Tell axios to expect a file blob
-        }
-      );
-
-      // 3. Save the file using file-saver
-      const blob = new Blob([response.data], { type: 'application/pdf' });
-      saveAs(blob, `Patient_Report_${patient?.abha_id}.pdf`);
-      
-      toast.success("Report downloaded", { id: 'pdf-toast' });
-      
-    } catch (err) {
-      console.error("PDF Download Error:", err);
-      toast.error("Failed to generate report", { id: 'pdf-toast' });
-    } finally {
-      setIsDownloadingPdf(false);
-    }
+  // Handle PDF Download using the hook
+  const handleDownloadReport = () => {
+    if (!patient) return;
+    downloadPdf(patient.id, patient.abha_id);
   };
 
   if (loading) {
@@ -122,49 +96,55 @@ const PatientDetailView: React.FC = () => {
   }
 
   if (!patient) {
-    return <div>Patient not found.</div>;
+    return <div className="text-center text-muted-foreground">Patient not found.</div>;
   }
 
   // Determine if consultation should be enabled (e.g., if any risk is Medium/High)
   const isAtRisk = patient.risk_prediction && (
-    patient.risk_prediction.diabetes_level !== 'Low' ||
-    patient.risk_prediction.heart_level !== 'Low' ||
-    patient.risk_prediction.liver_level !== 'Low' ||
-    patient.risk_prediction.mental_health_level !== 'Low'
+    patient.risk_prediction.diabetes_level === 'Medium' || patient.risk_prediction.diabetes_level === 'High' ||
+    patient.risk_prediction.heart_level === 'Medium' || patient.risk_prediction.heart_level === 'High' ||
+    patient.risk_prediction.liver_level === 'Medium' || patient.risk_prediction.liver_level === 'High' ||
+    patient.risk_prediction.mental_health_level === 'Medium' || patient.risk_prediction.mental_health_level === 'High'
   );
 
   return (
     <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-4">
       {/* Consultation Modal */}
       <ConsultationModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        isOpen={isConsultModalOpen}
+        onClose={() => setIsConsultModalOpen(false)}
         patientId={patient.id}
         onConsultationBooked={onConsultationBooked}
       />
+      {/* --- ADDED: Edit Patient Modal --- */}
+      <EditPatientModal
+         isOpen={isEditModalOpen}
+         onClose={() => setIsEditModalOpen(false)}
+         patient={patient}
+         onPatientUpdated={onPatientUpdated}
+      />
     
       {/* Left Column (Patient Info) */}
-      <div className="grid gap-4 md:col-span-1 lg:col-span-1">
+      <div className="grid auto-rows-min gap-4 md:col-span-1 lg:col-span-1">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-lg font-semibold">
-              {patient.full_name}
-            </CardTitle>
-            <User className="h-5 w-5 text-muted-foreground" />
+          <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
+            <div className="space-y-1">
+              <CardTitle className="text-lg font-semibold">
+                {patient.full_name}
+              </CardTitle>
+              <CardDescription>
+                ABHA: ...{patient.abha_id.slice(-4)} <br/>
+                {patient.age} years old, {patient.gender} <br/>
+                {patient.state_name}
+              </CardDescription>
+            </div>
+             <User className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-sm text-muted-foreground">
-              ABHA: ...{patient.abha_id.slice(-4)}
-            </div>
-            <div className="text-sm text-muted-foreground">
-              {patient.age} years old, {patient.gender}
-            </div>
-            <div className="text-sm text-muted-foreground">
-              {patient.state_name}
-            </div>
-            <Button variant="outline" size="sm" className="mt-4 w-full" disabled>
+             {/* --- FIX: Enable Edit button --- */}
+            <Button variant="outline" size="sm" className="w-full" onClick={() => setIsEditModalOpen(true)}>
               <Edit className="mr-2 h-4 w-4" />
-              Edit Details (Not Implemented)
+              Edit Details
             </Button>
           </CardContent>
         </Card>
@@ -175,13 +155,13 @@ const PatientDetailView: React.FC = () => {
             <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-sm">
-              <strong>Height:</strong> {patient.height_cm} cm
+             <div className="text-sm">
+              Height: <strong>{patient.height_cm} cm</strong>
             </div>
             <div className="text-sm">
-              <strong>Weight:</strong> {patient.weight_kg} kg
+              Weight: <strong>{patient.weight_kg} kg</strong>
             </div>
-            <div className="text-2xl font-bold">
+            <div className="text-xl font-bold mt-1">
               BMI: {patient.bmi}
             </div>
           </CardContent>
@@ -190,9 +170,10 @@ const PatientDetailView: React.FC = () => {
          <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-md font-medium">Overall Risk</CardTitle>
+             <CardDescription>Highest detected risk level.</CardDescription>
           </CardHeader>
           <CardContent>
-            <RiskBadge prediction={patient.risk_prediction} />
+            <RiskBadge prediction={patient.risk_prediction} condensed={false} /> {/* Show detailed badge here */}
           </CardContent>
         </Card>
         
@@ -203,15 +184,16 @@ const PatientDetailView: React.FC = () => {
           <CardContent className="flex flex-col gap-2">
             <Button 
               className="w-full" 
-              onClick={() => setIsModalOpen(true)}
+              onClick={() => setIsConsultModalOpen(true)}
               disabled={!isAtRisk}
+              title={!isAtRisk ? "Booking only available for Medium or High risk patients" : "Book a new consultation"}
             >
               <Calendar className="mr-2 h-4 w-4" />
               Book Consultation
             </Button>
             {!isAtRisk && (
-              <p className="text-xs text-muted-foreground text-center">
-                Booking enabled for Medium/High risk patients.
+              <p className="text-xs text-muted-foreground text-center -mt-1">
+                (Enabled for Medium/High risk)
               </p>
             )}
             
@@ -219,9 +201,9 @@ const PatientDetailView: React.FC = () => {
               variant="outline" 
               className="w-full"
               onClick={handleDownloadReport}
-              disabled={isDownloadingPdf}
+              disabled={isDownloading} // <-- FIX: Use hook state
             >
-              {isDownloadingPdf ? (
+              {isDownloading ? ( // <-- FIX: Use hook state
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
                 <FileDown className="mr-2 h-4 w-4" />

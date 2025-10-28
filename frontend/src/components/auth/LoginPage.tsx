@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, Loader2 } from 'lucide-react';
 import { useForm, SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -39,6 +39,7 @@ const LoginPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { adminLogin, patientLogin } = useAuth();
   const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState('patient'); // State to control errors
 
   // Admin Form Hook
   const {
@@ -88,9 +89,15 @@ const LoginPage: React.FC = () => {
     }
   };
 
+  const onTabChange = (value: string) => {
+    setError(null); // Clear errors when switching tabs
+    setIsSubmitting(false);
+    setActiveTab(value);
+  }
+
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-100">
-      <Tabs defaultValue="patient" className="w-[400px]">
+      <Tabs defaultValue="patient" className="w-[400px]" onValueChange={onTabChange}>
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="patient">Patient Login</TabsTrigger>
           <TabsTrigger value="admin">Admin Login</TabsTrigger>
@@ -107,7 +114,7 @@ const LoginPage: React.FC = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {error && (
+                {error && activeTab === 'patient' && (
                   <Alert variant="destructive">
                     <AlertCircle className="h-4 w-4" />
                     <AlertTitle>Login Failed</AlertTitle>
@@ -139,7 +146,7 @@ const LoginPage: React.FC = () => {
               </CardContent>
               <CardFooter>
                 <Button type="submit" className="w-full" disabled={isSubmitting}>
-                  {isSubmitting ? 'Logging in...' : 'Login as Patient'}
+                  {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Login as Patient'}
                 </Button>
               </CardFooter>
             </form>
@@ -157,7 +164,7 @@ const LoginPage: React.FC = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {error && (
+                {error && activeTab === 'admin' && (
                   <Alert variant="destructive">
                     <AlertCircle className="h-4 w-4" />
                     <AlertTitle>Login Failed</AlertTitle>
@@ -189,7 +196,7 @@ const LoginPage: React.FC = () => {
               </CardContent>
               <CardFooter>
                 <Button type="submit" className="w-full" disabled={isSubmitting}>
-                  {isSubmitting ? 'Logging in...' : 'Login as Admin'}
+                  {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Login as Admin'}
                 </Button>
               </CardFooter>
             </form>

@@ -4,10 +4,10 @@ from logging.handlers import RotatingFileHandler
 import os
 from flask import Flask, jsonify
 from flask_migrate import Migrate
-from app.config import config  # <-- Corrected import path
-from .extensions import db, jwt, bcrypt, cors
+from app.config import config
+from .extensions import db, jwt, bcrypt, cors, limiter # <-- ADDED limiter
 from .api import api_bp
-from . import services  # <-- FIX: Changed from 'ml_service' to 'services' to match provided file
+from . import services
 from .db_seeder import seed_static_recommendations
 
 def create_app(config_name='default'):
@@ -19,11 +19,12 @@ def create_app(config_name='default'):
     jwt.init_app(app)
     bcrypt.init_app(app)
     cors.init_app(app, resources={r"/api/*": {"origins": "*"}})
+    limiter.init_app(app) # <-- ADDED limiter init
     Migrate(app, db)
     
     # --- Load ML Models & Seed DB ---
     with app.app_context():
-        services.load_models(app) # <-- FIX: Changed from 'ml_service' to 'services'
+        services.load_models(app)
         seed_static_recommendations()
     # --- End ---
 

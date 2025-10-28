@@ -12,6 +12,8 @@ def admin_required(fn):
     def wrapper(*args, **kwargs):
         try:
             jwt_identity = get_jwt_identity()
+            if not jwt_identity:
+                return jsonify(error="Unauthorized", message="Missing or invalid token"), 401
             user_role = jwt_identity.get('role')
             
             if user_role != 'admin':

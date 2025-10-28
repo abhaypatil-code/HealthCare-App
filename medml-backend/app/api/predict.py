@@ -7,12 +7,10 @@ from app.api.decorators import admin_required
 from flask_jwt_extended import jwt_required
 from app import services
 
-def _map_risk_level(score: float, thresholds: dict = None) -> str:
-    """Maps a prediction score (0.0 - 1.0) to Low, Medium, or High."""
-    if thresholds is None:
-        # Default thresholds, can be tuned
-        thresholds = {'medium': 0.35, 'high': 0.70}
-        
+def _map_risk_level(score: float) -> str:
+    """Maps a prediction score (0.0 - 1.0) to Low, Medium, or High using app config."""
+    thresholds = current_app.config.get('RISK_THRESHOLDS', {'medium': 0.35, 'high': 0.70})
+
     if score >= thresholds['high']:
         return 'High'
     elif score >= thresholds['medium']:

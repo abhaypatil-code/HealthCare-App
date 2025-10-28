@@ -26,6 +26,10 @@ import { z } from 'zod';
 import apiClient from '@/utils/apiClient';
 import { toast } from 'sonner';
 
+// --- FIX: Add Strong Password Validation ---
+const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&_])[A-Za-z\d@$!%*?&_]{8,}$/;
+const PASSWORD_ERROR = "Must be 8+ chars with uppercase, lowercase, number, and special character.";
+
 // Zod schema for Patient Creation (fulfills MVP requirements)
 const patientCreateSchema = z.object({
   full_name: z.string().min(2, 'Full name must be at least 2 characters'),
@@ -35,7 +39,7 @@ const patientCreateSchema = z.object({
   weight_kg: z.coerce.number().gt(0, 'Weight must be positive'),
   abha_id: z.string().regex(/^\d{14}$/, 'ABHA ID must be 14 digits'),
   state_name: z.string().min(2, 'State name is required'),
-  password: z.string().min(8, 'Password must be at least 8 characters'),
+  password: z.string().regex(PASSWORD_REGEX, PASSWORD_ERROR), // <-- APPLIED FIX
 });
 
 type PatientCreateFormValues = z.infer<typeof patientCreateSchema>;
@@ -72,8 +76,19 @@ const AddNewUser: React.FC = () => {
       navigate(`/admin/patients/${responseData.patient.id}`);
       
     } catch (err: any) {
-      const errorMsg = err.response?.data?.message || 'Failed to create patient.';
-      setError(errorMsg);
+      // --- FIX: Handle Pydantic validation error display ---
+      if (err.response?.data?.messages) {
+        // Handle Pydantic validation errors
+        const pydanticErrors = err.response.data.messages;
+        const errorMessages = pydanticErrors.map((e: any) => {
+             if (e.loc && e.loc[0] === 'password') return PASSWORD_ERROR;
+             return `${e.loc.join('.')}: ${e.msg}`
+        }).join(' ');
+        setError(errorMessages);
+      } else {
+        const errorMsg = err.response?.data?.message || 'Failed to create patient.';
+        setError(errorMsg);
+      }
       console.error(err);
     } finally {
       setIsSubmitting(false);

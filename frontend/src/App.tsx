@@ -1,11 +1,11 @@
 // HealthCare App/src/App.tsx
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { Routes, Route, Navigate } from 'react-router-dom';
+import { useAuth } from './contexts/AuthContext';
 import LoginPage from './components/auth/LoginPage';
 import AdminDashboard from './components/admin/AdminDashboard';
 import PatientDashboard from './components/patient/PatientDashboard';
 import AppLayout from './components/layout/AppLayout';
-import { Toaster } from './components/ui/sonner';
+import ProtectedRoute from './components/auth/ProtectedRoute';
 
 /**
  * Handles root-level routing logic
@@ -78,12 +78,7 @@ const AppRoutes = () => {
 
 function App() {
   return (
-    <AuthProvider>
-      <Router>
-        <AppRoutes />
-        <Toaster />
-      </Router>
-    </AuthProvider>
+    <AppRoutes />
   );
 }
 

@@ -52,38 +52,91 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
       console.error('Failed to fetch user profile', error);
       // If /me fails, the token is invalid or expired
-      logout();
+      // The interceptor will handle refresh, but if /me fails *after* refresh,
+      // we log out.
+      logout(); // Clear state
       return null;
     }
   };
+
+  /**
+   * Handles user logout.
+   */
+  const logout = () => {
+    const accessToken = localStorage.getItem('authToken');
+    if (accessToken) {
+        // Inform the backend to blocklist the token
+        apiClient.post('/auth/logout').catch(err => {
+            console.error("Logout API call failed", err);
+        });
+    }
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('refreshToken'); // <-- ADDED
+    setToken(null);
+    setUser(null);
+    setRole(null);
+    setIsAuthenticated(false);
+    delete apiClient.defaults.headers.common['Authorization'];
+  };
+
 
   /**
    * Runs on app startup. Checks for an existing token and validates it.
    */
   useEffect(() => {
     const validateToken = async () => {
-      const storedToken = localStorage.getItem('authToken');
-      if (storedToken) {
+      const storedAccessToken = localStorage.getItem('authToken');
+      const storedRefreshToken = localStorage.getItem('refreshToken');
+
+      if (storedAccessToken) {
         try {
-          // Check token expiration
-          const decoded: JwtPayload = jwtDecode(storedToken);
+          const decoded: JwtPayload = jwtDecode(storedAccessToken);
           if (decoded.exp * 1000 > Date.now()) {
-            setToken(storedToken);
+            setToken(storedAccessToken);
             await fetchUserProfile();
           } else {
-            // Token is expired
-            logout();
+            // Access token expired, interceptor will handle refresh on next API call
+            console.log("Access token expired, will refresh on next call.");
           }
+        } catch (e) {
+          console.error("Invalid access token", e);
+          // Token is invalid, try to refresh
+        }
+      } else if (storedRefreshToken) {
+        // --- FIX: Proactively refresh if no access token but refresh token exists ---
+        try {
+          console.log("No access token, attempting refresh...");
+          const { data } = await apiClient.post(
+            '/auth/refresh',
+            {},
+            { headers: { 'Authorization': `Bearer ${storedRefreshToken}` } }
+          );
+          localStorage.setItem('authToken', data.access_token);
+          localStorage.setItem('refreshToken', data.refresh_token);
+          setToken(data.access_token);
+          await fetchUserProfile(); // Now fetch profile with new token
         } catch (error) {
-          // Token is invalid
-          console.error("Invalid token", error);
-          logout();
+          console.error("Startup refresh failed", error);
+          logout(); // Refresh failed, clear everything
         }
       }
+      
       setLoading(false);
     };
 
     validateToken();
+
+    // --- ADDED: Listen for logout event from apiClient interceptor ---
+    const handleLogoutEvent = () => {
+        console.warn("Received auth-logout event. Logging out.");
+        logout();
+    };
+    window.addEventListener('auth-logout', handleLogoutEvent);
+    return () => {
+        window.removeEventListener('auth-logout', handleLogoutEvent);
+    };
+    // --- End of Add ---
+
   }, []);
 
   /**
@@ -91,12 +144,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
    */
   const adminLogin = async (payload: AdminLoginPayload) => {
     const { data } = await apiClient.post('/auth/admin/login', payload);
-    const { access_token } = data;
+    const { access_token, refresh_token } = data;
     
     localStorage.setItem('authToken', access_token);
+    localStorage.setItem('refreshToken', refresh_token); // <-- ADDED
     setToken(access_token);
+    
+    // Set header for immediate use
+    apiClient.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
 
-    // Decode token to set role immediately for routing
     const decoded: JwtPayload = jwtDecode(access_token);
     setRole(decoded.sub.role);
 
@@ -109,28 +165,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
    */
   const patientLogin = async (payload: PatientLoginPayload) => {
     const { data } = await apiClient.post('/auth/patient/login', payload);
-    const { access_token } = data;
+    const { access_token, refresh_token } = data;
 
     localStorage.setItem('authToken', access_token);
+    localStorage.setItem('refreshToken', refresh_token); // <-- ADDED
     setToken(access_token);
+
+    // Set header for immediate use
+    apiClient.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
     
-    // Decode token to set role immediately for routing
     const decoded: JwtPayload = jwtDecode(access_token);
     setRole(decoded.sub.role);
 
     await fetchUserProfile(); // Fetch and set user data
     setIsAuthenticated(true);
-  };
-
-  /**
-   * Handles user logout.
-   */
-  const logout = () => {
-    localStorage.removeItem('authToken');
-    setToken(null);
-    setUser(null);
-    setRole(null);
-    setIsAuthenticated(false);
   };
 
   return (
