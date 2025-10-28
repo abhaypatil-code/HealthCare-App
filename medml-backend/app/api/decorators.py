@@ -5,32 +5,25 @@ from flask import jsonify
 
 def admin_required(fn):
     """
-    Custom decorator to ensure a route is accessed only by a user with
-    the 'admin' role, as stored in the JWT.
+    Decorator to ensure the user is an admin.
     """
     @wraps(fn)
     def wrapper(*args, **kwargs):
-        try:
-            jwt_identity = get_jwt_identity()
-            if not jwt_identity:
-                return jsonify(error="Unauthorized", message="Missing or invalid token"), 401
-            user_role = jwt_identity.get('role')
-            
-            if user_role != 'admin':
-                return jsonify(error="Forbidden", message="Admin access required"), 403
-            
-            return fn(*args, **kwargs)
-        except Exception as e:
-            # This can catch issues if the token is malformed
-            return jsonify(error="Invalid token", message=str(e)), 401
+        jwt_identity = get_jwt_identity()
+        if jwt_identity.get('role') != 'admin':
+            return jsonify(error="Forbidden", message="Admin access required"), 403
+        return fn(*args, **kwargs)
     return wrapper
 
 def get_current_admin_id():
     """
-    Helper function to safely get the ID of the currently logged-in admin
-    from the JWT identity.
+    Helper function to get the ID of the currently logged-in admin.
+    Assumes this is called from within an @admin_required route.
     """
     try:
-        return get_jwt_identity().get('id')
-    except:
-        return None
+        jwt_identity = get_jwt_identity()
+        if jwt_identity.get('role') == 'admin':
+            return jwt_identity.get('id')
+    except Exception:
+        pass # Will return None
+    return None

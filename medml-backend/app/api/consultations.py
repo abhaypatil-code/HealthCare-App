@@ -1,18 +1,14 @@
 # HealthCare App/medml-backend/app/api/consultations.py
 from flask import request, jsonify, current_app
 from . import api_bp
-from app.models import db, Patient, Consultation
+from app.models import db, Patient, Consultation, ConsultationNote, User
 from app.api.decorators import admin_required, get_current_admin_id
 from pydantic import BaseModel, constr
 from pydantic.error_wrappers import ValidationError
 from flask_jwt_extended import jwt_required
-from datetime import datetime
-class ConsultationSchema(BaseModel):
-    """ Validates consultation booking data """
-    patient_id: int
-    consultation_type: constr(pattern=r'^(Teleconsultation|In-Person)$')
-    consultation_datetime_str: str # Expecting ISO format string e.g. "2025-10-30T10:00:00"
-    notes: str | None = None
+from datetime import datetime, timedelta
+
+# --- UPDDATED: Schema removed, using direct JSON ---
 
 @api_bp.route('/consultations', methods=['POST'])
 @jwt_required()
@@ -20,37 +16,40 @@ class ConsultationSchema(BaseModel):
 def book_consultation():
     """
     [Admin Only] Books a dummy consultation for a patient.
-    Fulfills MVP: "Book dummy teleconsultation (medium risk) or in-person (high risk)"
+    Matches frontend api_client call.
     """
-    try:
-        data = ConsultationSchema(**request.json)
-    except ValidationError as e:
-        return jsonify(error="Validation Failed", messages=e.errors()), 422
-    
+    data = request.json
     admin_id = get_current_admin_id()
-    
-    patient = Patient.query.get(data.patient_id)
+
+    patient_id = data.get('patient_id')
+    disease = data.get('disease')
+    consultation_type = data.get('consultation_type') # 'teleconsultation' or 'in_person'
+
+    if not all([patient_id, disease, consultation_type]):
+        return jsonify(error="Bad Request", message="Missing patient_id, disease, or consultation_type"), 400
+
+    patient = Patient.query.get(patient_id)
     if not patient:
         return jsonify(error="Not Found", message="Patient not found"), 404
 
-    try:
-        consultation_dt = datetime.fromisoformat(data.consultation_datetime_str)
-    except ValueError:
-        return jsonify(error="Validation Failed", message="Invalid datetime format. Use ISO format."), 422
+    # Create dummy data as per SRD
+    dummy_datetime = datetime.now() + timedelta(days=7)
+    dummy_notes = f"Booking for {disease} ({consultation_type})"
 
     new_consultation = Consultation(
-        patient_id=data.patient_id,
+        patient_id=patient_id,
         admin_id=admin_id,
-        consultation_type=data.consultation_type,
-        consultation_datetime=consultation_dt,
-        notes=data.notes,
+        disease=disease,
+        consultation_type=consultation_type,
+        consultation_datetime=dummy_datetime,
+        notes=dummy_notes,
         status='Booked'
     )
     
     try:
         db.session.add(new_consultation)
         db.session.commit()
-        current_app.logger.info(f"Admin {admin_id} booked {data.consultation_type} for patient {data.patient_id}")
+        current_app.logger.info(f"Admin {admin_id} booked {consultation_type} for patient {patient_id}")
         
         return jsonify(
             message="Consultation booked successfully", 
@@ -72,3 +71,48 @@ def get_patient_consultations(patient_id):
     patient = Patient.query.get_or_404(patient_id)
     consultations = [c.to_dict() for c in patient.consultations]
     return jsonify(consultations=consultations), 200
+
+# --- ADDED: Endpoint for saving doctor notes ---
+
+class NoteSchema(BaseModel):
+    patient_id: int
+    notes: constr(min_length=1)
+
+@api_bp.route('/consultations/notes', methods=['POST'])
+@jwt_required()
+@admin_required
+def add_consultation_note():
+    """
+    [Admin Only] Adds a new note for a patient ("Notes for Doctor").
+    """
+    try:
+        data = NoteSchema(**request.json)
+    except ValidationError as e:
+        return jsonify(error="Validation Failed", messages=e.errors()), 422
+    
+    admin_id = get_current_admin_id()
+    
+    patient = Patient.query.get(data.patient_id)
+    if not patient:
+        return jsonify(error="Not Found", message="Patient not found"), 404
+        
+    new_note = ConsultationNote(
+        patient_id=data.patient_id,
+        admin_id=admin_id,
+        notes=data.notes
+    )
+    
+    try:
+        db.session.add(new_note)
+        db.session.commit()
+        current_app.logger.info(f"Admin {admin_id} added note for patient {data.patient_id}")
+        
+        return jsonify(
+            message="Note added successfully", 
+            note=new_note.to_dict()
+        ), 201
+    
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error adding note: {e}")
+        return jsonify(error="Internal server error", message="Could not add note."), 500

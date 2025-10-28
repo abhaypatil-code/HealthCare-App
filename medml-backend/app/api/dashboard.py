@@ -7,13 +7,13 @@ from flask_jwt_extended import jwt_required
 from sqlalchemy import func, cast, Date
 from datetime import date
 
-@api_bp.route('/dashboard/analytics', methods=['GET'])
+@api_bp.route('/dashboard/stats', methods=['GET']) # Renamed route
 @jwt_required()
 @admin_required
-def get_dashboard_analytics():
+def get_dashboard_stats(): # Renamed function
     """
     [Admin Only] Provides analytics for the admin dashboard.
-    Fulfills MVP: "Metrics: Today’s registrations + count by disease risk"
+    Returns counts as per frontend api_client.
     """
     try:
         # 1. Today's Registrations
@@ -22,37 +22,38 @@ def get_dashboard_analytics():
             cast(Patient.created_at, Date) == today
         ).scalar()
 
-        # 2. Count by disease risk (High risk only)
-        # This provides a count of patients marked as 'High' risk for each disease
-        risk_counts = {
-            'diabetes_high': db.session.query(func.count(RiskPrediction.id)).filter(
-                RiskPrediction.diabetes_level == 'High'
-            ).scalar(),
-            
-            'liver_high': db.session.query(func.count(RiskPrediction.id)).filter(
-                RiskPrediction.liver_level == 'High'
-            ).scalar(),
-            
-            'heart_high': db.session.query(func.count(RiskPrediction.id)).filter(
-                RiskPrediction.heart_level == 'High'
-            ).scalar(),
-            
-            'mental_health_high': db.session.query(func.count(RiskPrediction.id)).filter(
-                RiskPrediction.mental_health_level == 'High'
-            ).scalar(),
-        }
+        # 2. Count by disease risk (Medium OR High)
+        diabetes_risk_count = db.session.query(func.count(RiskPrediction.id)).filter(
+            RiskPrediction.diabetes_risk_level.in_(['Medium', 'High'])
+        ).scalar()
+        
+        liver_risk_count = db.session.query(func.count(RiskPrediction.id)).filter(
+            RiskPrediction.liver_risk_level.in_(['Medium', 'High'])
+        ).scalar()
+        
+        heart_risk_count = db.session.query(func.count(RiskPrediction.id)).filter(
+            RiskPrediction.heart_risk_level.in_(['Medium', 'High'])
+        ).scalar()
+        
+        mental_health_risk_count = db.session.query(func.count(RiskPrediction.id)).filter(
+            RiskPrediction.mental_health_risk_level.in_(['Medium', 'High'])
+        ).scalar()
         
         # Total registered patients
         total_patients_count = db.session.query(func.count(Patient.id)).scalar()
 
-        analytics_data = {
-            "todays_registrations": todays_registrations_count,
+        # --- UPDATED: Flattened response for api_client ---
+        stats_data = {
+            "today_registrations": todays_registrations_count,
             "total_patients": total_patients_count,
-            "risk_counts": risk_counts
+            "diabetes_risk_count": diabetes_risk_count,
+            "liver_risk_count": liver_risk_count,
+            "heart_risk_count": heart_risk_count,
+            "mental_health_risk_count": mental_health_risk_count
         }
         
-        return jsonify(analytics=analytics_data), 200
+        return jsonify(stats_data), 200 # Return flat JSON
 
     except Exception as e:
-        current_app.logger.error(f"Error fetching dashboard analytics: {e}")
+        current_app.logger.error(f"Error fetching dashboard stats: {e}")
         return jsonify(error="Internal server error"), 500

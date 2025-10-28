@@ -3,11 +3,12 @@ import joblib
 import pandas as pd
 import numpy as np
 import os
-from typing import Dict, Any
+import json
+import google.generativeai as genai
+from typing import Dict, Any, List
 from flask import current_app
 
-# --- Model Loading ---
-# FIX: Corrected path. __file__ is 'app/services.py', so we go 'app/../models_store'
+# Path to models_store directory
 MODEL_DIR = os.path.join(os.path.dirname(__file__), '..', 'models_store')
 
 # Global dictionary to hold models and preprocessors
@@ -17,9 +18,10 @@ models = {
     'liver': None,
     'mental_health': None
 }
-preprocessors = {
-    'heart': None
-}
+# --- FIX: Removed preprocessor dict ---
+# preprocessors = {
+#     'heart': None
+# }
 
 def load_model(app: Any, key: str, filename: str):
     """Loads a .pkl model from the models_store directory into a global dict."""
@@ -41,89 +43,96 @@ def load_models(app: Any):
         models['diabetes'] = load_model(app, 'diabetes', 'diabetes_XGBoost.pkl')
         models['heart'] = load_model(app, 'heart', 'heart_best_model.pkl')
         models['liver'] = load_model(app, 'liver', 'liver_LightGBM SMOTE.pkl')
-        # MVP specifies PHQ-9 (depression), so 'depressiveness' is the correct model
         models['mental_health'] = load_model(app, 'mental_health', 'mental_health_depressiveness.pkl')
         
-        # Load the separate preprocessor for the heart model
-        preprocessors['heart'] = load_model(app, 'heart_preprocessor', 'heart_preprocessor.pkl')
+        # --- FIX: Removed loading of the problematic preprocessor ---
+        # preprocessors['heart'] = load_model(app, 'heart_preprocessor', 'heart_preprocessor.pkl')
         
         app.logger.info("Model loading complete.")
+        
+        # --- Configure Gemini ---
+        try:
+            api_key = app.config.get('GEMINI_API_KEY')
+            if api_key:
+                genai.configure(api_key=api_key)
+                app.logger.info("Gemini API configured successfully.")
+            else:
+                app.logger.warning("GEMINI_API_KEY is not set. Recommendation service will be disabled.")
+        except Exception as e:
+            app.logger.error(f"Error configuring Gemini API: {e}")
 
-# --- Preprocessing & Prediction Logic ---
+# --- Preprocessing & Prediction Logic (UPDATED) ---
 
-def predict_diabetes(data: Dict[str, Any]) -> Dict[str, Any]:
+def predict_diabetes(data: Dict[str, Any]) -> float:
     model = models.get('diabetes')
     if model is None:
         current_app.logger.error("Diabetes model is not loaded.")
         raise RuntimeError("Diabetes model is not loaded.")
         
     try:
-        # The model .pkl is assumed to be a pipeline (scaler + model)
-        # Create DataFrame in the correct order expected by the model
-        # This order is based on the DiabetesAssessmentSchema
+        # --- UPDATED FEATURES per SRD ---
         feature_order = [
-            'pregnancies', 'glucose', 'blood_pressure', 
-            'skin_thickness', 'insulin', 'diabetes_pedigree_function'
+            'pregnancy', 'glucose', 'blood_pressure', 'skin_thickness', 
+            'insulin', 'diabetes_history', 'age', 'bmi'
         ]
-        # We also need 'age' and 'bmi' which are on the Patient model
-        # The *caller* (api/predict.py) must add these.
         
-        # Re-check: The schema only has 6 features. But the model notebook
-        # likely used Age and BMI. The DiabetesAssessment model only has 6.
-        # This is a schema/model mismatch.
-        # For now, we'll assume the model *only* uses the 6 features from the assessment.
-        # This may need refinement if prediction accuracy is low.
+        # Convert bools to int
+        data['pregnancy'] = 1 if data.get('pregnancy') else 0
+        data['diabetes_history'] = 1 if data.get('diabetes_history') else 0
+
         df = pd.DataFrame([data], columns=feature_order)
         
-        prediction = model.predict(df)[0]
-        probability = np.max(model.predict_proba(df))
+        # Predict probability of class 1 (disease)
+        probability = model.predict_proba(df)[0][1] 
         
-        # Output: 1 = Yes, 0 = No
-        return {"prediction": int(prediction), "probability": float(probability)}
+        return float(probability)
     except Exception as e:
         current_app.logger.error(f"Diabetes prediction error: {e}")
-        raise ValueError("Failed to preprocess diabetes data. Is model a pipeline? Are all features present?")
+        raise ValueError("Failed to preprocess diabetes data.")
 
-def predict_heart(data: Dict[str, Any]) -> Dict[str, Any]:
+def predict_heart(data: Dict[str, Any]) -> float:
     model = models.get('heart')
-    preprocessor = preprocessors.get('heart')
+    # --- FIX: Removed preprocessor ---
+    # preprocessor = preprocessors.get('heart')
     
-    if model is None or preprocessor is None:
-        current_app.logger.error("Heart model or preprocessor is not loaded.")
-        raise RuntimeError("Heart model or preprocessor is not loaded.")
+    # --- FIX: Removed preprocessor check ---
+    if model is None:
+        current_app.logger.error("Heart model is not loaded.")
+        raise RuntimeError("Heart model is not loaded.")
         
     try:
-        # Data dict comes from HeartAssessment.to_dict()
-        # It needs patient 'age' and 'gender'
-        # The *caller* (api/predict.py) must add these.
-        
-        # Define expected columns for the preprocessor
-        # This must match the training notebook
+        # --- UPDATED FEATURES per SRD ---
         feature_columns = [
-            'age', 'gender', 'chest_pain_type', 'resting_blood_pressure',
-            'cholesterol', 'fasting_blood_sugar', 'resting_ecg',
-            'max_heart_rate', 'exercise_angina', 'st_depression', 'st_slope'
+            'diabetes', 'hypertension', 'obesity', 'smoking', 'alcohol_consumption', 
+            'physical_activity', 'diet_score', 'cholesterol_level', 
+            'triglyceride_level', 'ldl_level', 'hdl_level', 'systolic_bp', 
+            'diastolic_bp', 'air_pollution_exposure', 'family_history', 
+            'stress_level', 'heart_attack_history', 'age', 'gender', 'bmi'
         ]
         
-        # Map 'gender' from 'Male'/'Female' to 0/1 as expected by preprocessor
+        # Map 'gender' from 'Male'/'Female' to 0/1
         data['gender'] = 1 if data.get('gender') == 'Male' else 0
+        
+        # Convert bools to int
+        bool_cols = ['diabetes', 'hypertension', 'obesity', 'smoking', 'alcohol_consumption', 
+                     'physical_activity', 'family_history', 'heart_attack_history']
+        for col in bool_cols:
+            data[col] = 1 if data.get(col) else 0
 
         df = pd.DataFrame([data], columns=feature_columns)
         
-        # Apply the preprocessor first
-        df_processed = preprocessor.transform(df) 
+        # --- FIX: Removed preprocessor step ---
+        # df_processed = preprocessor.transform(df) 
         
-        # Predict on the processed data
-        prediction = model.predict(df_processed)[0] 
-        probability = np.max(model.predict_proba(df_processed))
+        # --- FIX: Predict on the raw df, assuming model is a pipeline ---
+        probability = model.predict_proba(df)[0][1]
             
-        # Output: 1 = Yes, 0 = No
-        return {"prediction": int(prediction), "probability": float(probability)}
+        return float(probability)
     except Exception as e:
         current_app.logger.error(f"Heart prediction error: {e}")
-        raise ValueError("Failed to preprocess heart data. Check model/preprocessor and features.")
+        raise ValueError("Failed to preprocess heart data.")
 
-def predict_liver(data: Dict[str, Any]) -> Dict[str, Any]:
+def predict_liver(data: Dict[str, Any]) -> float:
     model = models.get('liver')
     if model is None:
         current_app.logger.error("Liver model is not loaded.")
@@ -132,36 +141,32 @@ def predict_liver(data: Dict[str, Any]) -> Dict[str, Any]:
     try:
         data_processed = data.copy()
         
-        # Map 'gender' (must be added by caller)
+        # Map 'gender'
         data_processed['Gender'] = 1 if data_processed.get('gender') == 'Male' else 0
         
-        # --- FIX: Calculate A/G Ratio as required by model ---
-        # The model expects 'Albumin_and_Globulin_Ratio'
-        # We get albumin and globulin from the assessment data
+        # --- UPDATED: Calculate A/G Ratio per SRD/model ---
         albumin = data_processed.get('albumin', 0)
-        globulin = data_processed.get('globulin', 0)
+        total_protein = data_processed.get('total_protein', 0)
         
-        if globulin and globulin > 0:
+        if total_protein and albumin and total_protein > albumin:
+            globulin = total_protein - albumin
             data_processed['Albumin_and_Globulin_Ratio'] = round(albumin / globulin, 2)
         else:
-            # Handle division by zero, e.g., assign a default or median
-            data_processed['Albumin_and_Globulin_Ratio'] = 0.9 # Placeholder
-        # --- End Fix ---
+            data_processed['Albumin_and_Globulin_Ratio'] = 0.9 # Placeholder median
+        # --- End Update ---
         
-        # FIX: Rename keys to match the model's expected feature names
-        # (Based on common notebook practices)
+        # Map keys to match the model's expected feature names
         key_map = {
             'age': 'Age',
-            'gender': 'Gender', # Already mapped
+            'gender': 'Gender',
             'total_bilirubin': 'Total_Bilirubin',
             'direct_bilirubin': 'Direct_Bilirubin',
-            'alkaline_phosphotase': 'Alkaline_Phosphotase',
-            'alamine_aminotransferase': 'Alamine_Aminotransferase',
-            'aspartate_aminotransferase': 'Aspartate_Aminotransferase',
-            'total_proteins': 'Total_Protiens', # Keep typo if model was trained with it
+            'alkaline_phosphatase': 'Alkaline_Phosphotase',
+            'sgpt_alamine_aminotransferase': 'Alamine_Aminotransferase', # Model might have this name
+            'sgot_aspartate_aminotransferase': 'Aspartate_Aminotransferase', # Model might have this name
+            'total_protein': 'Total_Protiens', # Keep typo if model was trained with it
             'albumin': 'Albumin',
-            'globulin': 'Globulin', # Not a feature, used for ratio
-            'Albumin_and_Globulin_Ratio': 'Albumin_and_Globulin_Ratio' # Calculated
+            'ag_ratio': 'Albumin_and_Globulin_Ratio' # Calculated
         }
         
         model_input_data = {
@@ -169,7 +174,6 @@ def predict_liver(data: Dict[str, Any]) -> Dict[str, Any]:
         }
 
         # Define feature order for the model
-        # This must match the training notebook
         feature_columns = [
             'Age', 'Gender', 'Total_Bilirubin', 'Direct_Bilirubin', 
             'Alkaline_Phosphotase', 'Alamine_Aminotransferase', 
@@ -179,57 +183,53 @@ def predict_liver(data: Dict[str, Any]) -> Dict[str, Any]:
         
         df = pd.DataFrame([model_input_data], columns=feature_columns)
         
-        # The .pkl is assumed to be a pipeline (scaler + model)
-        prediction = model.predict(df)[0]
-        probability = np.max(model.predict_proba(df))
+        # Predict probability of class 1 (disease)
+        probability = model.predict_proba(df)[0][1]
         
-        # Model output 1=disease, 2=no disease. Map to 1 and 0
-        prediction_mapped = 1 if prediction == 1 else 0
-        
-        return {"prediction": int(prediction_mapped), "probability": float(probability)}
+        return float(probability)
     except Exception as e:
         current_app.logger.error(f"Liver prediction error: {e}")
-        raise ValueError("Failed to preprocess liver data. Is model a pipeline? Check feature names.")
+        raise ValueError("Failed to preprocess liver data.")
 
 
-def predict_mental_health(data: Dict[str, Any]) -> Dict[str, Any]:
+def predict_mental_health(data: Dict[str, Any]) -> float:
     model = models.get('mental_health')
     if model is None:
         current_app.logger.error("Mental Health model is not loaded.")
         raise RuntimeError("Mental Health model is not loaded.")
         
     try:
-        # This model is based on PHQ-9, GAD-7, etc.
-        # The schema provides: 'phq_score', 'gad_score', 'sleep_quality', 'mood_factors'
-        # The model likely expects 'Age' as well (per MVP).
-        # The *caller* (api/predict.py) must add 'age'.
-        
-        # The model .pkl is assumed to be a full pipeline that handles
-        # all required preprocessing (e.g., encoding 'mood_factors' if used).
-        
-        # Define features based on schema + patient
+        # --- UPDATED FEATURES per SRD ---
         feature_columns = [
-            'age', 'phq_score', 'gad_score', 'sleep_quality', 'mood_factors'
+            'phq_score', 'gad_score', 'depressiveness', 'suicidal', 
+            'anxiousness', 'sleepiness', 'age', 'gender'
         ]
         
+        # Map 'gender' from 'Male'/'Female' to 0/1
+        data['gender'] = 1 if data.get('gender') == 'Male' else 0
+        
+        # Convert bools to int
+        bool_cols = ['depressiveness', 'suicidal', 'anxiousness', 'sleepiness']
+        for col in bool_cols:
+            data[col] = 1 if data.get(col) else 0
+
         df = pd.DataFrame([data], columns=feature_columns)
         
-        prediction = model.predict(df)[0]
-        probability = np.max(model.predict_proba(df))
-        
-        # Output: 1 = Yes (at risk), 0 = No
-        return {"prediction": int(prediction), "probability": float(probability)}
+        # Predict probability of class 1 (disease)
+        probability = model.predict_proba(df)[0][1]
             
+        return float(probability)
     except Exception as e:
         current_app.logger.error(f"Mental Health prediction error: {e}")
-        raise ValueError("Failed to preprocess mental health data. The .pkl must be a full pipeline.")
+        raise ValueError("Failed to preprocess mental health data.")
 
 
 # --- Main Service Function ---
 
-def run_prediction(assessment_type: str, input_data: dict) -> dict:
+def run_prediction(assessment_type: str, input_data: dict) -> float:
     """
     Routes prediction task to the correct function.
+    Returns the raw risk score (probability).
     """
     current_app.logger.info(f"Running prediction for {assessment_type}")
     
@@ -244,3 +244,94 @@ def run_prediction(assessment_type: str, input_data: dict) -> dict:
     else:
         current_app.logger.error(f"Invalid assessment type: {assessment_type}")
         raise ValueError("Invalid assessment type")
+
+# --- Gemini Recommendation Service ---
+
+def get_gemini_recommendations(risk_map: dict) -> List[Dict[str, Any]]:
+    """
+    Generates lifestyle recommendations using the Gemini API based on the
+    patient's risk profile.
+    """
+    api_key = current_app.config.get('GEMINI_API_KEY')
+    if not api_key:
+        current_app.logger.warning("GEMINI_API_KEY not set. Returning empty recommendations.")
+        return []
+
+    try:
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel('gemini-pro')
+        
+        # Build a prompt focusing on Medium/High risks
+        risk_summary = []
+        has_high_risk = False
+        for disease, level in risk_map.items():
+            if level in ['Medium', 'High']:
+                disease_name = disease.replace("_risk_level", "").capitalize()
+                risk_summary.append(f"- {disease_name}: {level} risk")
+                if level == 'High':
+                    has_high_risk = True
+
+        if not risk_summary:
+            prompt_intro = "The patient has Low risk for all assessed conditions (diabetes, liver, heart, mental health)."
+            prompt_request = "Provide 2-3 general preventative lifestyle recommendations."
+        else:
+            prompt_intro = "A patient has the following health risk profile:\n" + "\n".join(risk_summary)
+            if has_high_risk:
+                prompt_request = "Provide a mix of actionable lifestyle recommendations (diet, exercise, sleep, habits) for these conditions, prioritizing the 'High' risk items. Provide 2-3 recommendations per HIGH risk condition and 1-2 per MEDIUM risk condition."
+            else:
+                prompt_request = "Provide actionable lifestyle recommendations (diet, exercise, sleep, habits) for these 'Medium' risk conditions. Provide 2-3 recommendations per condition."
+
+        # JSON format instruction
+        prompt = f"""
+        You are a helpful, empathetic health assistant. {prompt_intro}
+
+        {prompt_request}
+
+        Format your response *only* as a valid JSON list of objects.
+        Each object in the list must have the following keys:
+        - "disease_type": (string) The disease this applies to (e.g., "Diabetes", "Heart", "General"). Use the capitalized name.
+        - "risk_level": (string) The risk level this applies to (e.g., "High", "Medium", "Low").
+        - "category": (string) The category of advice (e.g., "Diet", "Exercise", "Sleep", "Lifestyle").
+        - "recommendation_text": (string) The specific recommendation.
+
+        Example:
+        [
+          {{
+            "disease_type": "Diabetes",
+            "risk_level": "High",
+            "category": "Diet",
+            "recommendation_text": "Monitor blood sugar as advised by your doctor. Strictly limit sugary drinks and processed carbohydrates."
+          }}
+        ]
+
+        Provide *only* the JSON list.
+        """
+        
+        safety_settings = [
+            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
+        ]
+
+        response = model.generate_content(prompt, safety_settings=safety_settings)
+        
+        cleaned_text = response.text.strip().replace("```json", "").replace("```", "").strip()
+        
+        recommendations = json.loads(cleaned_text)
+        
+        # Group recommendations by category for frontend
+        grouped_recs = {"diet": [], "exercise": [], "sleep": [], "lifestyle": []}
+        for rec in recommendations:
+            cat = rec.get("category", "Lifestyle").lower()
+            if cat in grouped_recs:
+                grouped_recs[cat].append(rec)
+            else:
+                grouped_recs["lifestyle"].append(rec)
+            
+        current_app.logger.info(f"Successfully fetched {len(recommendations)} recommendations from Gemini.")
+        return grouped_recs
+
+    except Exception as e:
+        current_app.logger.error(f"Error calling Gemini API: {e}. Response text: {response.text if 'response' in locals() else 'N/A'}")
+        return {"diet": [], "exercise": [], "sleep": [], "lifestyle": []}

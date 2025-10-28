@@ -1,7 +1,7 @@
 # HealthCare App/medml-backend/app/api/auth.py
 from flask import request, jsonify, abort, current_app
 from . import api_bp
-from app.models import User, Patient
+from app.models import User, Patient, TokenBlocklist
 from app.extensions import db, limiter
 from app.schemas import UserRegisterSchema, UserLoginSchema, PatientLoginSchema, PASSWORD_ERROR_MSG
 from pydantic import ValidationError
@@ -13,17 +13,10 @@ from flask_jwt_extended import (
     get_jwt,
     get_jti
 )
+from datetime import datetime # Added
 
-# --- FIX: Add rate limiting to login endpoints ---
+# Rate limiting to login endpoints
 LOGIN_LIMIT = "10 per minute"
-
-# This is a hypothetical blocklist. In production, use Redis or a DB.
-BLOCKLIST = set()
-
-@jwt.token_in_blocklist_loader
-def check_if_token_in_blocklist(jwt_header, jwt_payload):
-    jti = jwt_payload["jti"]
-    return jti in BLOCKLIST
 
 @api_bp.route('/auth/admin/register', methods=['POST'])
 @limiter.limit("5 per hour") # Stricter limit for registration
@@ -34,19 +27,23 @@ def register_admin():
     try:
         data = UserRegisterSchema(**request.json)
     except ValidationError as e:
-        # --- FIX: Provide detailed validation errors ---
-        if any(err['msg'] == 'string_pattern_mismatch' for err in e.errors()):
+        if any('regex' in err['type'] for err in e.errors()):
              return jsonify(error="Validation Failed", message=PASSWORD_ERROR_MSG), 422
         return jsonify(error="Validation Failed", messages=e.errors()), 422
 
     if User.query.filter_by(email=data.email).first():
-        return jsonify(error="Email already exists"), 422
+        return jsonify(error="Conflict", message="Email already exists"), 409
+    
+    if data.username and User.query.filter_by(username=data.username).first():
+        return jsonify(error="Conflict", message="Username already exists"), 409
 
     new_user = User(
         name=data.name,
         email=data.email,
+        username=data.username,
         designation=data.designation,
         contact_number=data.contact_number,
+        facility_name=data.facility_name,
         role='admin' # Enforce admin role
     )
     new_user.set_password(data.password)
@@ -77,25 +74,27 @@ def login_admin():
 
     if user and user.check_password(data.password):
         # Create token with role identity
-        identity = {"id": user.id, "role": user.role}
+        identity = {"id": user.id, "role": user.role, "name": user.name}
         access_token = create_access_token(identity=identity)
-        refresh_token = create_refresh_token(identity=identity) # <-- ADDED
+        refresh_token = create_refresh_token(identity=identity)
         
         current_app.logger.info(f"Admin login successful: {user.email}")
         return jsonify(
+            message="Admin login successful",
             access_token=access_token, 
-            refresh_token=refresh_token # <-- ADDED
+            refresh_token=refresh_token,
+            admin_id=user.id,
+            name=user.name
         ), 200
     
-    # --- FIX: Sanitize log message ---
     current_app.logger.warning(f"Failed admin login attempt for email: {data.email[:3]}***")
-    return jsonify(error="Invalid credentials"), 401
+    return jsonify(error="Invalid credentials", message="Invalid email or password."), 401
 
 @api_bp.route('/auth/patient/login', methods=['POST'])
 @limiter.limit(LOGIN_LIMIT) # Apply rate limit
 def login_patient():
     """
-    Logs in a Patient using ABHA ID and password as per MVP.
+    Logs in a Patient using ABHA ID and password.
     """
     try:
         data = PatientLoginSchema(**request.json)
@@ -106,21 +105,23 @@ def login_patient():
 
     if patient and patient.check_password(data.password):
         # Create token with role identity
-        identity = {"id": patient.id, "role": "patient"}
+        identity = {"id": patient.id, "role": "patient", "name": patient.name}
         access_token = create_access_token(identity=identity)
-        refresh_token = create_refresh_token(identity=identity) # <-- ADDED
+        refresh_token = create_refresh_token(identity=identity)
         
         current_app.logger.info(f"Patient login successful: {patient.abha_id}")
         return jsonify(
+            message="Patient login successful",
             access_token=access_token,
-            refresh_token=refresh_token # <-- ADDED
+            refresh_token=refresh_token,
+            patient_id=patient.id,
+            name=patient.name
         ), 200
     
     current_app.logger.warning(f"Failed patient login attempt for ABHA ID: {data.abha_id}")
-    return jsonify(error="Invalid credentials"), 401
+    return jsonify(error="Invalid credentials", message="Invalid ABHA ID or password."), 401
 
 
-# --- ADDED: Refresh Token Endpoint ---
 @api_bp.route('/auth/refresh', methods=['POST'])
 @jwt_required(refresh=True)
 def refresh():
@@ -129,7 +130,12 @@ def refresh():
     """
     try:
         identity = get_jwt_identity()
+        current_jti = get_jwt().get('jti')
         
+        # Blocklist the used refresh token
+        db.session.add(TokenBlocklist(jti=current_jti, token_type='refresh', user_id=identity.get('id')))
+        db.session.commit()
+
         # Create new tokens
         access_token = create_access_token(identity=identity)
         refresh_token = create_refresh_token(identity=identity)
@@ -139,22 +145,30 @@ def refresh():
             refresh_token=refresh_token
         ), 200
     except Exception as e:
+        db.session.rollback()
         current_app.logger.error(f"Error refreshing token: {e}")
         return jsonify(error="Token refresh failed"), 401
-# --- End of Add ---
 
 
-# --- ADDED: Logout Endpoint ---
 @api_bp.route("/auth/logout", methods=["POST"])
 @jwt_required()
 def logout():
     """
     Logs out a user by blocklisting their token.
     """
-    jti = get_jwt()["jti"]
-    BLOCKLIST.add(jti)
-    return jsonify(message="Access token successfully revoked"), 200
-# --- End of Add ---
+    jwt_payload = get_jwt()
+    jti = jwt_payload.get("jti")
+    token_type = jwt_payload.get("type", "access")
+    expires = datetime.fromtimestamp(jwt_payload.get("exp"))
+    identity = get_jwt_identity() or {}
+    try:
+        db.session.add(TokenBlocklist(jti=jti, token_type=token_type, user_id=identity.get('id'), expires_at=expires))
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Failed to revoke token: {e}")
+        return jsonify(message="Failed to revoke token"), 500
+    return jsonify(message="Token successfully revoked"), 200
 
 
 @api_bp.route('/auth/me', methods=['GET'])
@@ -180,8 +194,13 @@ def get_me():
             patient = Patient.query.get(user_id)
             if not patient:
                  return jsonify(error="Patient not found"), 404
-            # Return patient data, including assessments and predictions
-            return jsonify(patient.to_dict(include_assessments=True, include_predictions=True)), 200
+            # Patient dashboard needs history and latest prediction
+            return jsonify(patient.to_dict(
+                include_admin=True,
+                include_history=True, 
+                include_latest_prediction=True,
+                include_notes=True
+            )), 200
         
         return jsonify(error="Unknown user role"), 401
         

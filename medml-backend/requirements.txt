@@ -6,11 +6,14 @@ Flask-Bcrypt
 Flask-Cors
 python-dotenv
 pydantic
+pydantic[email]
+SQLAlchemy
 scikit-learn
 pandas
 joblib
 xgboost
 lightgbm
 imbalanced-learn
-fpdf # <-- ADDED for PDF generation
-Flask-Limiter # <-- ADDED for rate limiting
+fpdf
+Flask-Limiter
+google-generativeai # <-- ADDED for Gemini recommendations

@@ -8,10 +8,10 @@ basedir = os.path.abspath(os.path.dirname(__file__))
 BASE_DIR = os.path.abspath(os.path.join(basedir, '..'))
 
 class Config:
-    # --- FIX: Remove hardcoded fallbacks for security ---
     SECRET_KEY = os.environ.get('SECRET_KEY')
     if not SECRET_KEY:
-        raise ValueError("No SECRET_KEY set for Flask application")
+        print("Warning: SECRET_KEY is not set. Using a temporary dev key.")
+        SECRET_KEY = 'dev-secret-key' # Allow in dev
 
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or \
         'sqlite:///' + os.path.join(basedir, 'medml.db')
@@ -20,27 +20,29 @@ class Config:
     # Base directory for the application
     BASE_DIR = BASE_DIR
     
-    # --- FIX: JWT Configuration ---
     JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY')
     if not JWT_SECRET_KEY:
-        raise ValueError("No JWT_SECRET_KEY set for Flask application")
+        print("Warning: JWT_SECRET_KEY is not set. Using a temporary dev key.")
+        JWT_SECRET_KEY = 'dev-jwt-secret-key' # Allow in dev
         
-    JWT_ACCESS_TOKEN_EXPIRES = timedelta(minutes=int(os.environ.get('JWT_ACCESS_TOKEN_EXPIRES_MIN', 15)))
+    JWT_ACCESS_TOKEN_EXIRES = timedelta(minutes=int(os.environ.get('JWT_ACCESS_TOKEN_EXPIRES_MIN', 15)))
     JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=int(os.environ.get('JWT_REFRESH_TOKEN_EXPIRES_DAYS', 30)))
     
-    # --- ADDED: Externalize Risk Thresholds (for Batch 3) ---
+    GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
+    if not GEMINI_API_KEY:
+        print("Warning: GEMINI_API_KEY not set. Recommendation API will fail.")
+        
+    # --- ADDED: Risk Thresholds from SRD ---
     RISK_THRESHOLDS = {
-        'medium': 0.35,
-        'high': 0.70
+        'low': 0.0,  # Example: 0.0 to 0.34
+        'medium': 0.35, # Example: 0.35 to 0.69
+        'high': 0.70  # Example: 0.70+
     }
 
 class DevelopmentConfig(Config):
     DEBUG = True
-    # Allow missing env vars in dev
-    if not Config.SECRET_KEY:
-        Config.SECRET_KEY = 'dev-secret-key'
-    if not Config.JWT_SECRET_KEY:
-        Config.JWT_SECRET_KEY = 'dev-jwt-secret-key'
+    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or \
+        'sqlite:///' + os.path.join(basedir, 'medml.db')
 
 
 class TestingConfig(Config):
@@ -49,12 +51,21 @@ class TestingConfig(Config):
     WTF_CSRF_ENABLED = False
     SECRET_KEY = 'test-secret'
     JWT_SECRET_KEY = 'test-jwt-secret'
+    GEMINI_API_KEY = 'test-gemini-key' # Use a dummy key for testing
 
 class ProductionConfig(Config):
     DEBUG = False
     TESTING = False
+    
     # In production, SECRET_KEY and JWT_SECRET_KEY *must* be set
-    # The check in Config class enforces this.
+    if not os.environ.get('SECRET_KEY'):
+         raise ValueError("No SECRET_KEY set for Flask application in production")
+    if not os.environ.get('JWT_SECRET_KEY'):
+        raise ValueError("No JWT_SECRET_KEY set for Flask application in production")
+    
+    # --- ADDED: Enforce Gemini Key in Prod ---
+    if not Config.GEMINI_API_KEY:
+        raise ValueError("No GEMINI_API_KEY set for Flask application in production")
 
 config = {
     'development': DevelopmentConfig,

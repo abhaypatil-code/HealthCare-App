@@ -10,13 +10,11 @@ from app.schemas import (
 from app.api.decorators import admin_required, get_current_admin_id
 from pydantic import ValidationError
 from flask_jwt_extended import jwt_required
-from .predict import _run_and_save_prediction  # <-- IMPORT PREDICTION HELPER
 
-def _create_or_update_assessment(patient_id, AssessmentModel, SchemaModel, assessment_type_key):
+def _create_assessment(patient_id, AssessmentModel, SchemaModel):
     """
-    Internal helper function to create or update an assessment for a patient.
-    Fulfills MVP: "save independently"
-    FIX: Now also triggers prediction automatically.
+    Internal helper function to CREATE a new assessment for a patient.
+    This supports the 1:N history requirement from the SRD.
     """
     patient = Patient.query.get_or_404(patient_id)
     
@@ -26,38 +24,28 @@ def _create_or_update_assessment(patient_id, AssessmentModel, SchemaModel, asses
     except ValidationError as e:
         return jsonify(error="Validation Failed", messages=e.errors()), 422
 
-    # Find existing assessment or create a new one (1:1 relationship)
-    assessment = AssessmentModel.query.filter_by(patient_id=patient_id).first()
+    # --- UPDATED: Always create a new assessment ---
+    assessment = AssessmentModel(patient_id=patient_id, **data.model_dump())
     
-    if not assessment:
-        assessment = AssessmentModel(patient_id=patient_id, **data.model_dump())
-        db.session.add(assessment)
-        message = f"{AssessmentModel.__name__} created successfully"
-        status_code = 201
-    else:
-        # Update existing assessment fields
-        for key, value in data.model_dump().items():
-            setattr(assessment, key, value)
-        message = f"{AssessmentModel.__name__} updated successfully"
-        status_code = 200
+    # Audit: set assessor to current admin
+    updater_id = get_current_admin_id()
+    if hasattr(assessment, 'assessed_by_admin_id'):
+        assessment.assessed_by_admin_id = updater_id
+        
+    db.session.add(assessment)
+    message = f"{AssessmentModel.__name__} created successfully"
+    status_code = 201
 
     try:
         db.session.commit()
         current_app.logger.info(f"{message} for patient {patient_id} by admin {get_current_admin_id()}")
         
-        # --- MVP REQUIREMENT: Trigger Prediction ---
-        # After saving the assessment, trigger the ML prediction
-        try:
-            _run_and_save_prediction(patient_id, assessment_type_key)
-        except Exception as pred_e:
-            # Log the prediction error, but don't fail the assessment save
-            current_app.logger.error(f"Prediction trigger failed for {assessment_type_key} on patient {patient_id}: {pred_e}")
-        # --- End Prediction Trigger ---
-
-        # Return the *full* patient object, including all assessments AND predictions
+        # Prediction is now handled by a separate call
+        
+        # Return the newly created assessment
         return jsonify(
             message=message, 
-            patient=patient.to_dict(include_assessments=True, include_predictions=True)
+            assessment=assessment.to_dict()
         ), status_code
         
     except Exception as e:
@@ -72,51 +60,51 @@ def _create_or_update_assessment(patient_id, AssessmentModel, SchemaModel, asses
 @admin_required
 def submit_diabetes_assessment(patient_id):
     """
-    [Admin Only] Creates or updates the diabetes assessment for a patient.
+    [Admin Only] Creates a new diabetes assessment for a patient.
     """
-    return _create_or_update_assessment(patient_id, DiabetesAssessment, DiabetesAssessmentSchema, 'diabetes')
+    return _create_assessment(patient_id, DiabetesAssessment, DiabetesAssessmentSchema)
 
 @api_bp.route('/patients/<int:patient_id>/assessments/liver', methods=['POST'])
 @jwt_required()
 @admin_required
 def submit_liver_assessment(patient_id):
     """
-    [Admin Only] Creates or updates the liver assessment for a patient.
+    [Admin Only] Creates a new liver assessment for a patient.
     """
-    return _create_or_update_assessment(patient_id, LiverAssessment, LiverAssessmentSchema, 'liver')
+    return _create_assessment(patient_id, LiverAssessment, LiverAssessmentSchema)
 
 @api_bp.route('/patients/<int:patient_id>/assessments/heart', methods=['POST'])
 @jwt_required()
 @admin_required
 def submit_heart_assessment(patient_id):
     """
-    [Admin Only] Creates or updates the heart assessment for a patient.
+    [Admin Only] Creates a new heart assessment for a patient.
     """
-    return _create_or_update_assessment(patient_id, HeartAssessment, HeartAssessmentSchema, 'heart')
+    return _create_assessment(patient_id, HeartAssessment, HeartAssessmentSchema)
 
 @api_bp.route('/patients/<int:patient_id>/assessments/mental_health', methods=['POST'])
 @jwt_required()
 @admin_required
 def submit_mental_health_assessment(patient_id):
     """
-    [Admin Only] Creates or updates the mental health assessment for a patient.
+    [Admin Only] Creates a new mental health assessment for a patient.
     """
-    return _create_or_update_assessment(patient_id, MentalHealthAssessment, MentalHealthAssessmentSchema, 'mental_health')
+    return _create_assessment(patient_id, MentalHealthAssessment, MentalHealthAssessmentSchema)
 
 @api_bp.route('/patients/<int:patient_id>/assessments', methods=['GET'])
 @jwt_required()
 @admin_required
 def get_all_assessments(patient_id):
     """
-    [Admin Only] Gets the status of all 4 assessments for a single patient.
+    [Admin Only] Gets all historical assessments for a single patient.
     """
     patient = Patient.query.get_or_404(patient_id)
     
     assessments_data = {
-        "diabetes": patient.diabetes_assessment.to_dict() if patient.diabetes_assessment else None,
-        "liver": patient.liver_assessment.to_dict() if patient.liver_assessment else None,
-        "heart": patient.heart_assessment.to_dict() if patient.heart_assessment else None,
-        "mental_health": patient.mental_health_assessment.to_dict() if patient.mental_health_assessment else None,
+        "diabetes": [a.to_dict() for a in patient.diabetes_assessments],
+        "liver": [a.to_dict() for a in patient.liver_assessments],
+        "heart": [a.to_dict() for a in patient.heart_assessments],
+        "mental_health": [a.to_dict() for a in patient.mental_health_assessments],
     }
     
     return jsonify(patient_id=patient_id, assessments=assessments_data), 200

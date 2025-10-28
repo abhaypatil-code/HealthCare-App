@@ -1,33 +1,39 @@
 # HealthCare App/medml-backend/app/models.py
-# HealthCare App/medml-backend/app/models.py
 from app.extensions import db, bcrypt
 from sqlalchemy.sql import func
 from sqlalchemy.ext.hybrid import hybrid_property
-from datetime import datetime # <-- ADDED
+from datetime import datetime
+from sqlalchemy import CheckConstraint
+from flask import current_app
 
 class User(db.Model):
     """
-    Represents an Admin user (Healthcare Worker) as per MVP.
+    Represents an Admin user (Healthcare Worker)
     """
     __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True)
     
-    # Fields from MVP 'Admin' table
+    # Fields from SRD 'Admin' table
     name = db.Column(db.String(150), nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False) # Used for login
+    username = db.Column(db.String(80), unique=True, nullable=True) # Added from SRD
     password_hash = db.Column(db.String(256), nullable=False)
     designation = db.Column(db.String(100), nullable=True)
     contact_number = db.Column(db.String(20), nullable=True)
+    facility_name = db.Column(db.String(150), nullable=True) # Added from SRD
     
-    # Role-based access
     role = db.Column(db.String(20), nullable=False, default='admin')
     created_at = db.Column(db.DateTime(timezone=True), server_default=func.now())
     
     # 1:N relationship (Admin -> Patients)
-    patients = db.relationship('Patient', back_populates='created_by')
+    patients = db.relationship('Patient', back_populates='created_by_admin')
     
     # 1:N relationship (Admin -> Consultations)
     booked_consultations = db.relationship('Consultation', back_populates='booked_by_admin')
+    
+    # 1:N relationship (Admin -> ConsultationNotes)
+    consultation_notes = db.relationship('ConsultationNote', back_populates='admin')
+
 
     def set_password(self, password):
         self.password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
@@ -37,44 +43,51 @@ class User(db.Model):
 
     def to_dict(self):
         return {
-            "id": self.id,
+            "admin_id": self.id,
             "name": self.name,
             "email": self.email,
+            "username": self.username,
             "role": self.role,
             "designation": self.designation,
-            "contact_number": self.contact_number
+            "contact_number": self.contact_number,
+            "facility_name": self.facility_name
         }
 
 class Patient(db.Model):
     """
-    Represents a Patient as per MVP.
+    Represents a Patient
     """
     __tablename__ = 'patients'
     id = db.Column(db.Integer, primary_key=True)
     
-    # MVP Fields
-    full_name = db.Column(db.String(150), nullable=False)
+    # SRD Fields
+    name = db.Column(db.String(150), nullable=False) # Renamed from full_name
     age = db.Column(db.Integer, nullable=False)
     gender = db.Column(db.String(20), nullable=False)
-    height_cm = db.Column(db.Float, nullable=False)
-    weight_kg = db.Column(db.Float, nullable=False)
+    height = db.Column(db.Float, nullable=False) # Renamed from height_cm
+    weight = db.Column(db.Float, nullable=False) # Renamed from weight_kg
     abha_id = db.Column(db.String(14), unique=True, nullable=False)
     password_hash = db.Column(db.String(256), nullable=False) # For patient login
     state_name = db.Column(db.String(100), nullable=True)
     
-    created_by_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    created_by = db.relationship('User', back_populates='patients')
+    created_by_admin_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False) # Renamed
+    created_by_admin = db.relationship('User', back_populates='patients') # Renamed
     created_at = db.Column(db.DateTime(timezone=True), server_default=func.now())
+    updated_at = db.Column(db.DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     
-    # 1:1 Relationships with Assessments and Predictions
-    diabetes_assessment = db.relationship('DiabetesAssessment', back_populates='patient', uselist=False, cascade="all, delete-orphan")
-    liver_assessment = db.relationship('LiverAssessment', back_populates='patient', uselist=False, cascade="all, delete-orphan")
-    heart_assessment = db.relationship('HeartAssessment', back_populates='patient', uselist=False, cascade="all, delete-orphan")
-    mental_health_assessment = db.relationship('MentalHealthAssessment', back_populates='patient', uselist=False, cascade="all, delete-orphan")
-    risk_prediction = db.relationship('RiskPrediction', back_populates='patient', uselist=False, cascade="all, delete-orphan")
+    # --- UPDATED: 1:N Relationships as per SRD ---
+    diabetes_assessments = db.relationship('DiabetesAssessment', back_populates='patient', lazy='dynamic', cascade="all, delete-orphan", order_by="DiabetesAssessment.assessed_at.desc()")
+    liver_assessments = db.relationship('LiverAssessment', back_populates='patient', lazy='dynamic', cascade="all, delete-orphan", order_by="LiverAssessment.assessed_at.desc()")
+    heart_assessments = db.relationship('HeartAssessment', back_populates='patient', lazy='dynamic', cascade="all, delete-orphan", order_by="HeartAssessment.assessed_at.desc()")
+    mental_health_assessments = db.relationship('MentalHealthAssessment', back_populates='patient', lazy='dynamic', cascade="all, delete-orphan", order_by="MentalHealthAssessment.assessed_at.desc()")
+    risk_predictions = db.relationship('RiskPrediction', back_populates='patient', lazy='dynamic', cascade="all, delete-orphan", order_by="RiskPrediction.predicted_at.desc()")
     
     # 1:N relationship (Patient -> Consultations)
-    consultations = db.relationship('Consultation', back_populates='patient')
+    consultations = db.relationship('Consultation', back_populates='patient', lazy='dynamic')
+    
+    # --- ADDED: 1:N relationship for Notes ---
+    consultation_notes = db.relationship('ConsultationNote', back_populates='patient', lazy='dynamic', cascade="all, delete-orphan", order_by="ConsultationNote.created_at.desc()")
+
 
     def set_password(self, password):
         self.password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
@@ -84,214 +97,322 @@ class Patient(db.Model):
 
     @hybrid_property
     def bmi(self):
-        """ Auto-calculates BMI as required by MVP """
-        if self.height_cm and self.weight_kg and self.height_cm > 0:
-            height_m = self.height_cm / 100.0
-            return round(self.weight_kg / (height_m ** 2), 2)
+        """ Auto-calculates BMI as required by SRD """
+        if self.height and self.weight and self.height > 0:
+            height_m = self.height / 100.0
+            return round(self.weight / (height_m ** 2), 2)
         return None
 
-    def to_dict(self, include_assessments=False, include_predictions=False, include_consultations=False):
+    def to_dict(self, include_admin=True, include_history=False, include_latest_prediction=False, include_notes=False):
         data = {
-            "id": self.id,
-            "full_name": self.full_name,
+            "patient_id": self.id,
+            "name": self.name,
             "age": self.age,
             "gender": self.gender,
             "abha_id": self.abha_id,
-            "height_cm": self.height_cm,
-            "weight_kg": self.weight_kg,
+            "height": self.height,
+            "weight": self.weight,
             "bmi": self.bmi,
             "state_name": self.state_name,
-            "created_by_user_id": self.created_by_user_id,
+            "created_by_admin_id": self.created_by_admin_id,
             "created_at": self.created_at.isoformat(),
         }
-        if include_assessments:
-            data['assessments'] = {
-                "diabetes": self.diabetes_assessment.to_dict() if self.diabetes_assessment else None,
-                "liver": self.liver_assessment.to_dict() if self.liver_assessment else None,
-                "heart": self.heart_assessment.to_dict() if self.heart_assessment else None,
-                "mental_health": self.mental_health_assessment.to_dict() if self.mental_health_assessment else None,
-            }
-        if include_predictions:
-            data['risk_prediction'] = self.risk_prediction.to_dict() if self.risk_prediction else None
-        if include_consultations:
-            data['consultations'] = [c.to_dict() for c in self.consultations]
+        if include_admin and self.created_by_admin:
+            data['created_by_admin'] = self.created_by_admin.to_dict()
+            
+        if include_history:
+            data['diabetes_assessments'] = [a.to_dict() for a in self.diabetes_assessments]
+            data['liver_assessments'] = [a.to_dict() for a in self.liver_assessments]
+            data['heart_assessments'] = [a.to_dict() for a in self.heart_assessments]
+            data['mental_health_assessments'] = [a.to_dict() for a in self.mental_health_assessments]
+            data['risk_predictions'] = [p.to_dict() for p in self.risk_predictions]
+        
+        if include_latest_prediction:
+             data['latest_prediction'] = self.risk_predictions.first().to_dict() if self.risk_predictions.first() else None
+
+        if include_notes:
+            data['consultation_notes'] = [n.to_dict() for n in self.consultation_notes]
+            
         return data
 
-# --- Assessment Tables (as per MVP) ---
+    # --- ADDED: Helper methods to get features for ML models ---
+    def _get_common_features(self):
+        return {
+            "age": self.age,
+            "gender": self.gender,
+            "bmi": self.bmi
+        }
+
+    def get_latest_diabetes_features(self):
+        latest_assessment = self.diabetes_assessments.first()
+        if not latest_assessment:
+            raise ValueError("No diabetes assessment found for patient")
+        
+        features = latest_assessment.to_dict(include_patient_data=True)
+        features.update(self._get_common_features())
+        return features
+
+    def get_latest_liver_features(self):
+        latest_assessment = self.liver_assessments.first()
+        if not latest_assessment:
+            raise ValueError("No liver assessment found for patient")
+        
+        features = latest_assessment.to_dict(include_patient_data=True)
+        features.update(self._get_common_features())
+        return features
+
+    def get_latest_heart_features(self):
+        latest_assessment = self.heart_assessments.first()
+        if not latest_assessment:
+            raise ValueError("No heart assessment found for patient")
+        
+        features = latest_assessment.to_dict(include_patient_data=True)
+        features.update(self._get_common_features())
+        return features
+
+    def get_latest_mental_health_features(self):
+        latest_assessment = self.mental_health_assessments.first()
+        if not latest_assessment:
+            raise ValueError("No mental health assessment found for patient")
+        
+        features = latest_assessment.to_dict(include_patient_data=True)
+        features.update(self._get_common_features())
+        return features
+
+
+# --- Assessment Tables (as per SRD) ---
 
 class BaseAssessment(db.Model):
     """ Abstract base for common assessment fields """
     __abstract__ = True
     id = db.Column(db.Integer, primary_key=True)
-    patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False, unique=True) # 1:1
-    assessed_at = db.Column(db.DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    # UPDATED: Removed unique=True for 1:N
+    patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False) 
+    assessed_at = db.Column(db.DateTime(timezone=True), server_default=func.now())
+    
+    # Renamed from updated_by_user_id
+    assessed_by_admin_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
 
 class DiabetesAssessment(BaseAssessment):
     __tablename__ = 'diabetes_assessments'
-    patient = db.relationship('Patient', back_populates='diabetes_assessment')
+    patient = db.relationship('Patient', back_populates='diabetes_assessments')
     
-    pregnancies = db.Column(db.Integer, nullable=False)
+    # --- UPDATED FIELDS from SRD ---
+    pregnancy = db.Column(db.Boolean, nullable=False, default=False)
     glucose = db.Column(db.Float, nullable=False)
     blood_pressure = db.Column(db.Float, nullable=False)
     skin_thickness = db.Column(db.Float, nullable=False)
     insulin = db.Column(db.Float, nullable=False)
-    diabetes_pedigree_function = db.Column(db.Float, nullable=False)
+    diabetes_history = db.Column(db.Boolean, nullable=False, default=False)
     
-    def to_dict(self):
-        # Exclude 'id' and 'patient_id' from the dict sent to the model
-        return {
-            "pregnancies": self.pregnancies,
+    def to_dict(self, include_patient_data=False):
+        data = {
+            "assessment_id": self.id,
+            "patient_id": self.patient_id,
+            "pregnancy": self.pregnancy,
             "glucose": self.glucose,
             "blood_pressure": self.blood_pressure,
             "skin_thickness": self.skin_thickness,
             "insulin": self.insulin,
-            "diabetes_pedigree_function": self.diabetes_pedigree_function,
+            "diabetes_history": self.diabetes_history,
             "assessed_at": self.assessed_at.isoformat()
         }
+        if include_patient_data and self.patient:
+             data.update(self.patient._get_common_features())
+        return data
+
 
 class LiverAssessment(BaseAssessment):
     __tablename__ = 'liver_assessments'
-    patient = db.relationship('Patient', back_populates='liver_assessment')
+    patient = db.relationship('Patient', back_populates='liver_assessments')
     
+    # --- UPDATED FIELDS from SRD ---
     total_bilirubin = db.Column(db.Float, nullable=False)
     direct_bilirubin = db.Column(db.Float, nullable=False)
-    alkaline_phosphotase = db.Column(db.Float, nullable=False)
-    alamine_aminotransferase = db.Column(db.Float, nullable=False)
-    aspartate_aminotransferase = db.Column(db.Float, nullable=False)
-    total_proteins = db.Column(db.Float, nullable=False)
+    alkaline_phosphatase = db.Column(db.Float, nullable=False) # Renamed
+    sgpt_alamine_aminotransferase = db.Column(db.Float, nullable=False) # Renamed
+    sgot_aspartate_aminotransferase = db.Column(db.Float, nullable=False) # Renamed
+    total_protein = db.Column(db.Float, nullable=False) # Renamed
     albumin = db.Column(db.Float, nullable=False)
-    globulin = db.Column(db.Float, nullable=False)
+    # Removed globulin
     
     @hybrid_property
     def ag_ratio(self):
-        """ Auto-calculates A/G Ratio as required """
-        if self.albumin and self.globulin and self.globulin > 0:
-            return round(self.albumin / self.globulin, 2)
+        """ Auto-calculates A/G Ratio as required from SRD """
+        if self.albumin and self.total_protein and self.total_protein > self.albumin:
+            globulin = self.total_protein - self.albumin
+            if globulin > 0:
+                return round(self.albumin / globulin, 2)
         return None
 
-    def to_dict(self):
-        # Exclude 'id' and 'patient_id'
+    def to_dict(self, include_patient_data=False):
         data = {
+            "assessment_id": self.id,
+            "patient_id": self.patient_id,
             "total_bilirubin": self.total_bilirubin,
             "direct_bilirubin": self.direct_bilirubin,
-            "alkaline_phosphotase": self.alkaline_phosphotase,
-            "alamine_aminotransferase": self.alamine_aminotransferase,
-            "aspartate_aminotransferase": self.aspartate_aminotransferase,
-            "total_proteins": self.total_proteins,
+            "alkaline_phosphatase": self.alkaline_phosphatase,
+            "sgpt_alamine_aminotransferase": self.sgpt_alamine_aminotransferase,
+            "sgot_aspartate_aminotransferase": self.sgot_aspartate_aminotransferase,
+            "total_protein": self.total_protein,
             "albumin": self.albumin,
-            "globulin": self.globulin,
             "ag_ratio": self.ag_ratio, # Add the computed ratio
             "assessed_at": self.assessed_at.isoformat()
         }
+        if include_patient_data and self.patient:
+             data.update(self.patient._get_common_features())
         return data
+
 
 class HeartAssessment(BaseAssessment):
     __tablename__ = 'heart_assessments'
-    patient = db.relationship('Patient', back_populates='heart_assessment')
+    patient = db.relationship('Patient', back_populates='heart_assessments')
     
-    chest_pain_type = db.Column(db.Integer, nullable=False)
-    resting_blood_pressure = db.Column(db.Float, nullable=False)
-    cholesterol = db.Column(db.Float, nullable=False)
-    fasting_blood_sugar = db.Column(db.Integer, nullable=False)
-    resting_ecg = db.Column(db.Integer, nullable=False)
-    max_heart_rate = db.Column(db.Float, nullable=False)
-    exercise_angina = db.Column(db.Integer, nullable=False)
-    st_depression = db.Column(db.Float, nullable=False)
-    st_slope = db.Column(db.Integer, nullable=False)
+    # --- COMPLETELY REPLACED FIELDS from SRD ---
+    diabetes = db.Column(db.Boolean, nullable=False, default=False)
+    hypertension = db.Column(db.Boolean, nullable=False, default=False)
+    obesity = db.Column(db.Boolean, nullable=False, default=False)
+    smoking = db.Column(db.Boolean, nullable=False, default=False)
+    alcohol_consumption = db.Column(db.Boolean, nullable=False, default=False)
+    physical_activity = db.Column(db.Boolean, nullable=False, default=False)
+    diet_score = db.Column(db.Integer, nullable=True) # 1-10
+    cholesterol_level = db.Column(db.Float, nullable=False)
+    triglyceride_level = db.Column(db.Float, nullable=True)
+    ldl_level = db.Column(db.Float, nullable=True)
+    hdl_level = db.Column(db.Float, nullable=True)
+    systolic_bp = db.Column(db.Integer, nullable=False)
+    diastolic_bp = db.Column(db.Integer, nullable=False)
+    air_pollution_exposure = db.Column(db.Float, nullable=True)
+    family_history = db.Column(db.Boolean, nullable=False, default=False)
+    stress_level = db.Column(db.Integer, nullable=True) # 1-10
+    heart_attack_history = db.Column(db.Boolean, nullable=False, default=False)
 
-    def to_dict(self):
-        # Exclude 'id' and 'patient_id'
-        return {
-            "chest_pain_type": self.chest_pain_type,
-            "resting_blood_pressure": self.resting_blood_pressure,
-            "cholesterol": self.cholesterol,
-            "fasting_blood_sugar": self.fasting_blood_sugar,
-            "resting_ecg": self.resting_ecg,
-            "max_heart_rate": self.max_heart_rate,
-            "exercise_angina": self.exercise_angina,
-            "st_depression": self.st_depression,
-            "st_slope": self.st_slope,
+    def to_dict(self, include_patient_data=False):
+        data = {
+            "assessment_id": self.id,
+            "patient_id": self.patient_id,
+            "diabetes": self.diabetes,
+            "hypertension": self.hypertension,
+            "obesity": self.obesity,
+            "smoking": self.smoking,
+            "alcohol_consumption": self.alcohol_consumption,
+            "physical_activity": self.physical_activity,
+            "diet_score": self.diet_score,
+            "cholesterol_level": self.cholesterol_level,
+            "triglyceride_level": self.triglyceride_level,
+            "ldl_level": self.ldl_level,
+            "hdl_level": self.hdl_level,
+            "systolic_bp": self.systolic_bp,
+            "diastolic_bp": self.diastolic_bp,
+            "air_pollution_exposure": self.air_pollution_exposure,
+            "family_history": self.family_history,
+            "stress_level": self.stress_level,
+            "heart_attack_history": self.heart_attack_history,
             "assessed_at": self.assessed_at.isoformat()
         }
+        if include_patient_data and self.patient:
+             data.update(self.patient._get_common_features())
+        return data
 
 class MentalHealthAssessment(BaseAssessment):
     __tablename__ = 'mental_health_assessments'
-    patient = db.relationship('Patient', back_populates='mental_health_assessment')
+    patient = db.relationship('Patient', back_populates='mental_health_assessments')
     
+    # --- UPDATED FIELDS from SRD ---
     phq_score = db.Column(db.Integer, nullable=False)
     gad_score = db.Column(db.Integer, nullable=False)
-    sleep_quality = db.Column(db.Integer, nullable=False)
-    mood_factors = db.Column(db.String(255), nullable=True)
+    depressiveness = db.Column(db.Boolean, nullable=False, default=False)
+    suicidal = db.Column(db.Boolean, nullable=False, default=False)
+    anxiousness = db.Column(db.Boolean, nullable=False, default=False)
+    sleepiness = db.Column(db.Boolean, nullable=False, default=False)
 
-    def to_dict(self):
-        # Exclude 'id' and 'patient_id'
-        return {
+    def to_dict(self, include_patient_data=False):
+        data = {
+            "assessment_id": self.id,
+            "patient_id": self.patient_id,
             "phq_score": self.phq_score,
             "gad_score": self.gad_score,
-            "sleep_quality": self.sleep_quality,
-            "mood_factors": self.mood_factors,
+            "depressiveness": self.depressiveness,
+            "suicidal": self.suicidal,
+            "anxiousness": self.anxiousness,
+            "sleepiness": self.sleepiness,
             "assessed_at": self.assessed_at.isoformat()
         }
+        if include_patient_data and self.patient:
+             data.update(self.patient._get_common_features())
+        return data
 
-# --- Prediction and Recommendation Tables (as per MVP) ---
+
+# --- Prediction and Recommendation Tables ---
 
 class RiskPrediction(db.Model):
     __tablename__ = 'risk_predictions'
     id = db.Column(db.Integer, primary_key=True)
-    patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False, unique=True) # 1:1
-    patient = db.relationship('Patient', back_populates='risk_prediction')
+    # UPDATED: Removed unique=True for 1:N
+    patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False) 
+    patient = db.relationship('Patient', back_populates='risk_predictions')
     
-    diabetes_score = db.Column(db.Float, nullable=True)
-    diabetes_level = db.Column(db.String(20), nullable=True)
-    liver_score = db.Column(db.Float, nullable=True)
-    liver_level = db.Column(db.String(20), nullable=True)
-    heart_score = db.Column(db.Float, nullable=True)
-    heart_level = db.Column(db.String(20), nullable=True)
-    mental_health_score = db.Column(db.Float, nullable=True)
-    mental_health_level = db.Column(db.String(20), nullable=True)
+    diabetes_risk_score = db.Column(db.Float, nullable=True) # Renamed
+    diabetes_risk_level = db.Column(db.String(20), nullable=True) # Renamed
+    liver_risk_score = db.Column(db.Float, nullable=True) # Renamed
+    liver_risk_level = db.Column(db.String(20), nullable=True) # Renamed
+    heart_risk_score = db.Column(db.Float, nullable=True) # Renamed
+    heart_risk_level = db.Column(db.String(20), nullable=True) # Renamed
+    mental_health_risk_score = db.Column(db.Float, nullable=True) # Renamed
+    mental_health_risk_level = db.Column(db.String(20), nullable=True) # Renamed
     
     model_version = db.Column(db.String(50), nullable=True, default='1.0')
-    predicted_at = db.Column(db.DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    predicted_at = db.Column(db.DateTime(timezone=True), server_default=func.now())
+    
+    def _get_level(self, score):
+        """Categorizes score based on config thresholds."""
+        thresholds = current_app.config.get('RISK_THRESHOLDS', {'medium': 0.35, 'high': 0.7})
+        if score >= thresholds['high']:
+            return 'High'
+        if score >= thresholds['medium']:
+            return 'Medium'
+        return 'Low'
+
+    def update_risk(self, model_key: str, score: float, model_version: str):
+        """Helper to update a specific risk and its level."""
+        level = self._get_level(score)
+        setattr(self, f"{model_key}_risk_score", score)
+        setattr(self, f"{model_key}_risk_level", level)
+        # Potentially update model version per-disease, or use a general one
+        self.model_version = model_version
 
     def to_dict(self):
         return {
+            "prediction_id": self.id,
             "patient_id": self.patient_id,
-            "diabetes_score": self.diabetes_score,
-            "diabetes_level": self.diabetes_level,
-            "liver_score": self.liver_score,
-            "liver_level": self.liver_level,
-            "heart_score": self.heart_score,
-            "heart_level": self.heart_level,
-            "mental_health_score": self.mental_health_score,
-            "mental_health_level": self.mental_health_level,
+            "diabetes_risk_score": self.diabetes_risk_score,
+            "diabetes_risk_level": self.diabetes_risk_level,
+            "liver_risk_score": self.liver_risk_score,
+            "liver_risk_level": self.liver_risk_level,
+            "heart_risk_score": self.heart_risk_score,
+            "heart_risk_level": self.heart_risk_level,
+            "mental_health_risk_score": self.mental_health_risk_score,
+            "mental_health_risk_level": self.mental_health_risk_level,
             "model_version": self.model_version,
             "predicted_at": self.predicted_at.isoformat()
         }
 
-class LifestyleRecommendation(db.Model):
-    """ Stores static recommendation templates """
-    __tablename__ = 'lifestyle_recommendations'
-    id = db.Column(db.Integer, primary_key=True)
-    disease_type = db.Column(db.String(50), nullable=False) # 'diabetes', 'liver', 'heart', 'mental_health', 'general'
-    risk_level = db.Column(db.String(20), nullable=False) # 'Low', 'Medium', 'High'
-    category = db.Column(db.String(50), nullable=False, default='general') # 'Diet', 'Exercise', 'Sleep', 'Lifestyle'
-    recommendation_text = db.Column(db.Text, nullable=False)
-    
-    __table_args__ = (db.UniqueConstraint('disease_type', 'risk_level', 'category', 'recommendation_text'),)
+# LifestyleRecommendation model is NOT used, as per SRD goal
+# to use live Gemini API calls.
 
-# --- NEW: Consultation Table ---
 class Consultation(db.Model):
     """
-    Represents a (dummy) consultation booking as per MVP.
+    Represents a (dummy) consultation booking.
     """
     __tablename__ = 'consultations'
     id = db.Column(db.Integer, primary_key=True)
     patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False)
     admin_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     
-    consultation_type = db.Column(db.String(50), nullable=False) # 'Teleconsultation', 'In-Person'
-    consultation_datetime = db.Column(db.DateTime, nullable=False)
-    notes = db.Column(db.Text, nullable=True)
+    disease = db.Column(db.String(50), nullable=True) # ADDED
+    consultation_type = db.Column(db.String(50), nullable=False) # 'teleconsultation', 'in_person'
+    consultation_datetime = db.Column(db.DateTime, nullable=False) # Dummy datetime
+    notes = db.Column(db.Text, nullable=True) # Note from admin at booking time
     status = db.Column(db.String(20), nullable=False, default='Booked') # e.g., 'Booked', 'Completed'
     created_at = db.Column(db.DateTime(timezone=True), server_default=func.now())
     
@@ -303,9 +424,44 @@ class Consultation(db.Model):
             "id": self.id,
             "patient_id": self.patient_id,
             "admin_id": self.admin_id,
+            "disease": self.disease,
             "consultation_type": self.consultation_type,
             "consultation_datetime": self.consultation_datetime.isoformat(),
             "notes": self.notes,
             "status": self.status,
             "created_at": self.created_at.isoformat()
         }
+
+# --- ADDED: ConsultationNote Table ---
+class ConsultationNote(db.Model):
+    """
+    Represents notes added by an Admin for a Patient ("Notes for Doctor").
+    """
+    __tablename__ = 'consultation_notes'
+    id = db.Column(db.Integer, primary_key=True)
+    patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False)
+    admin_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    notes = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime(timezone=True), server_default=func.now())
+
+    patient = db.relationship('Patient', back_populates='consultation_notes')
+    admin = db.relationship('User', back_populates='consultation_notes')
+    
+    def to_dict(self):
+        return {
+            "note_id": self.id,
+            "patient_id": self.patient_id,
+            "admin_id": self.admin_id,
+            "notes": self.notes,
+            "created_at": self.created_at.isoformat()
+        }
+
+# --- Token Blocklist for JWT revocation ---
+class TokenBlocklist(db.Model):
+    __tablename__ = 'token_blocklist'
+    id = db.Column(db.Integer, primary_key=True)
+    jti = db.Column(db.String(36), index=True, nullable=False, unique=True)
+    token_type = db.Column(db.String(10), nullable=False) # 'access' or 'refresh'
+    user_id = db.Column(db.Integer, nullable=True)
+    created_at = db.Column(db.DateTime(timezone=True), server_default=func.now())
+    expires_at = db.Column(db.DateTime(timezone=True), nullable=True)

@@ -1,54 +1,60 @@
-# Python
-*.pyc
-__pycache__/
-*.egg-info/
-dist/
-build/
-
-# Virtual environment
+# --- Python Virtual Environments ---
+.venv/
 venv/
 env/
-.venv/
-env.bak/
-env/bin/activate
+.env/
 
-node_modules/
-# IDE and editor files
-.idea/
-.vscode/
-*.sublime-project
-*.sublime-workspace
+# --- Python Cache & Compiled Files ---
+__pycache__/
+*.py[cod]
+*$py.class
 
-# Compiled files
-*.exe
-*.dll
-*.so
-*.dylib
+# --- Secrets & Environment Variables ---
+# Crucial for security!
+.env
+*.env
 
-# Logs and caches
+# --- Backend (Flask) Specific ---
+# Ignores the SQLite database and any instance-specific files
+instance/
+# Ignores log files
+logs/
 *.log
-*.cache
+
+# --- Frontend (Streamlit) Specific ---
+.streamlit/
+
+# --- Database Files ---
 *.db
+*.sqlite
+*.sqlite3
 
-# Build and deployment files
-*.zip
-*.tar.gz
-*.deb
-*.rpm
-
-# Test and coverage files
-*.pytest_cache/
-.coverage/
-.coverage.*
-.cache/
-nosetests.xml
-coverage.xml
-
-# Dependency files
+# --- Distribution / Packaging ---
+build/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+*.egg-info/
 *.egg
-*.whl
-*.egg-info
+MANIFEST
 
-# Miscellaneous
+# --- Editor/IDE Settings ---
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# --- OS-generated Files ---
+# macOS
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+
+# Windows
 Thumbs.db
+ehthumbs.db

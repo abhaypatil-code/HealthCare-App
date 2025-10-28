@@ -1,9 +1,9 @@
 # HealthCare App/medml-backend/app/schemas.py
-from pydantic import BaseModel, EmailStr, constr, conint, confloat
-from typing import List
+from pydantic import BaseModel, EmailStr, constr, conint, confloat, validator
+from typing import List, Optional
+import re  # <-- Import the 're' module
 
-# --- FIX: Define Strong Password Regex ---
-# Min 8 chars, 1 uppercase, 1 lowercase, 1 number, 1 special char
+# Regex for password
 PASSWORD_REGEX = r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&_])[A-Za-z\d@$!%*?&_]{8,}$"
 PASSWORD_ERROR_MSG = "Password must be at least 8 characters long and contain one uppercase letter, one lowercase letter, one number, and one special character."
 
@@ -13,10 +13,20 @@ class UserRegisterSchema(BaseModel):
     """ Validates admin registration data """
     name: constr(min_length=2, max_length=150)
     email: EmailStr
-    password: constr(pattern=PASSWORD_REGEX, min_length=8)
-    designation: constr(max_length=100) | None = None
-    contact_number: constr(max_length=20) | None = None
+    username: Optional[constr(min_length=3, max_length=80)] = None
+    # --- FIX: Removed complex pattern from constr, only check length ---
+    password: constr(min_length=8)
+    designation: Optional[constr(max_length=100)] = None
+    contact_number: Optional[constr(max_length=20)] = None
+    facility_name: Optional[constr(max_length=150)] = None # Added from SRD
     role: str = 'admin'
+
+    # --- FIX: Added custom validator for password complexity ---
+    @validator('password')
+    def password_complexity(cls, v):
+        if not re.match(PASSWORD_REGEX, v):
+            raise ValueError(PASSWORD_ERROR_MSG)
+        return v
 
     class Config:
         json_schema_extra = {
@@ -24,9 +34,11 @@ class UserRegisterSchema(BaseModel):
                 {
                     "name": "Dr. Jane Doe",
                     "email": "jane.doe@med.com",
+                    "username": "janedoe",
                     "password": "Password123!",
-                    "designation": "Cardiologist",
-                    "contact_number": "555-1234"
+                    "designation": "Rural Health Worker",
+                    "contact_number": "555-1234",
+                    "facility_name": "Community Health Center"
                 }
             ]
         }
@@ -38,7 +50,7 @@ class UserLoginSchema(BaseModel):
     password: str
 
 class PatientLoginSchema(BaseModel):
-    """ Validates patient login as per MVP """
+    """ Validates patient login """
     abha_id: constr(pattern=r'^\d{14}$') # Strict 14-digit ABHA ID
     password: str
 
@@ -46,24 +58,32 @@ class PatientLoginSchema(BaseModel):
 
 class PatientCreateSchema(BaseModel):
     """ Validates data for creating a new patient """
-    full_name: constr(min_length=2, max_length=150)
-    age: conint(gt=0, lt=120)
+    name: constr(min_length=2, max_length=150) # Renamed from full_name
+    age: conint(gt=0, le=120)
     gender: constr(min_length=1, max_length=20)
-    height_cm: confloat(gt=0)
-    weight_kg: confloat(gt=0)
+    height: confloat(gt=0) # Renamed from height_cm
+    weight: confloat(gt=0) # Renamed from weight_kg
     abha_id: constr(pattern=r'^\d{14}$') # Strict 14-digit validation
-    state_name: constr(max_length=100) | None = None
-    password: constr(pattern=PASSWORD_REGEX, min_length=8) # Admin sets initial patient password
+    state_name: Optional[constr(max_length=100)] = None
+    # --- FIX: Removed complex pattern from constr, only check length ---
+    password: constr(min_length=8) # Admin sets initial patient password
+
+    # --- FIX: Added custom validator for password complexity ---
+    @validator('password')
+    def password_complexity(cls, v):
+        if not re.match(PASSWORD_REGEX, v):
+            raise ValueError(PASSWORD_ERROR_MSG)
+        return v
 
     class Config:
         json_schema_extra = {
             "examples": [
                 {
-                    "full_name": "John Patient",
+                    "name": "John Patient",
                     "age": 45,
                     "gender": "Male",
-                    "height_cm": 175,
-                    "weight_kg": 80,
+                    "height": 175,
+                    "weight": 80,
                     "abha_id": "12345678901234",
                     "state_name": "Karnataka",
                     "password": "Password123!"
@@ -71,41 +91,59 @@ class PatientCreateSchema(BaseModel):
             ]
         }
 
-# --- Assessment Schemas (as per MVP) ---
-# These schemas validate the *input* for the 4 assessment types.
+class PatientUpdateSchema(BaseModel):
+    """ Validates data for updating a patient """
+    name: constr(min_length=2, max_length=150)
+    age: conint(gt=0, le=120)
+    gender: constr(min_length=1, max_length=20)
+    height: confloat(gt=0)
+    weight: confloat(gt=0)
+    abha_id: constr(pattern=r'^\d{14}$') # Allow updating ABHA ID
+    state_name: Optional[constr(max_length=100)] = None
+
+# --- Assessment Schemas (UPDATED as per SRD) ---
 
 class DiabetesAssessmentSchema(BaseModel):
-    pregnancies: int
+    pregnancy: bool
     glucose: float
     blood_pressure: float
     skin_thickness: float
     insulin: float
-    diabetes_pedigree_function: float
+    diabetes_history: bool
 
 class LiverAssessmentSchema(BaseModel):
     total_bilirubin: float
     direct_bilirubin: float
-    alkaline_phosphotase: float
-    alamine_aminotransferase: float
-    aspartate_aminotransferase: float
-    total_proteins: float
+    alkaline_phosphatase: float # Renamed
+    sgpt_alamine_aminotransferase: float # Renamed
+    sgot_aspartate_aminotransferase: float # Renamed
+    total_protein: float # Renamed
     albumin: float
-    globulin: float # MVP states A/G ratio is computed, so globulin is needed
+    # globulin removed
 
 class HeartAssessmentSchema(BaseModel):
-    chest_pain_type: int
-    resting_blood_pressure: float
-    cholesterol: float
-    fasting_blood_sugar: int # 1 or 0
-    resting_ecg: int
-    max_heart_rate: float
-    exercise_angina: int # 1 or 0
-    st_depression: float
-    st_slope: int
+    diabetes: bool
+    hypertension: bool
+    obesity: bool
+    smoking: bool
+    alcohol_consumption: bool
+    physical_activity: bool
+    diet_score: Optional[conint(ge=1, le=10)] = None
+    cholesterol_level: float
+    triglyceride_level: Optional[float] = None
+    ldl_level: Optional[float] = None
+    hdl_level: Optional[float] = None
+    systolic_bp: int
+    diastolic_bp: int
+    air_pollution_exposure: Optional[float] = None
+    family_history: bool
+    stress_level: Optional[conint(ge=1, le=10)] = None
+    heart_attack_history: bool
 
 class MentalHealthAssessmentSchema(BaseModel):
-    # As per MVP, using PHQ-9 and GAD-7 factors
-    phq_score: conint(ge=0, le=27) # PHQ-9 total score
-    gad_score: conint(ge=0, le=21) # GAD-7 total score
-    sleep_quality: conint(ge=1, le=5) # Example: 1-5 scale
-    mood_factors: constr(max_length=255) | None = None
+    phq_score: conint(ge=0, le=27)
+    gad_score: conint(ge=0, le=21)
+    depressiveness: bool
+    suicidal: bool
+    anxiousness: bool
+    sleepiness: bool

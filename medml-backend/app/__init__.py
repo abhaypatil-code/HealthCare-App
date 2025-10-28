@@ -8,7 +8,7 @@ from app.config import config
 from .extensions import db, jwt, bcrypt, cors, limiter # <-- ADDED limiter
 from .api import api_bp
 from . import services
-from .db_seeder import seed_static_recommendations
+# from .db_seeder import seed_static_recommendations # <-- REMOVED
 
 def create_app(config_name='default'):
     app = Flask(__name__)
@@ -18,18 +18,22 @@ def create_app(config_name='default'):
     db.init_app(app)
     jwt.init_app(app)
     bcrypt.init_app(app)
-    cors.init_app(app, resources={r"/api/*": {"origins": "*"}})
+    # Configure CORS origins from env (comma-separated), default to "*" in dev
+    origins = os.environ.get('CORS_ORIGINS', '*')
+    if isinstance(origins, str) and origins != '*':
+        origins = [o.strip() for o in origins.split(',') if o.strip()]
+    cors.init_app(app, resources={r"/api/*": {"origins": origins}})
     limiter.init_app(app) # <-- ADDED limiter init
     Migrate(app, db)
     
-    # --- Load ML Models & Seed DB ---
+    # --- Load ML Models ---
     with app.app_context():
         services.load_models(app)
-        seed_static_recommendations()
+        # seed_static_recommendations() # <-- REMOVED
     # --- End ---
 
     # Register Blueprints
-    app.register_blueprint(api_bp, url_prefix='/api/v1')
+    app.register_blueprint(api_bp, url_prefix='/api/v1') # Updated to v1
 
     # Import models to ensure they are registered
     from . import models
@@ -58,5 +62,20 @@ def create_app(config_name='default'):
     def not_found_error(e):
         # Use str(e) to get the default "Not Found" message or a custom one
         return jsonify(error="Not Found", message=str(e).replace("404 Not Found: ", "")), 404
+
+    # --- JWT Blocklist callback (DB-backed) ---
+    from app.models import TokenBlocklist
+    from flask_jwt_extended import JWTManager
+
+    @jwt.token_in_blocklist_loader
+    def check_if_token_revoked(jwt_header, jwt_payload):
+        try:
+            jti = jwt_payload.get('jti')
+            if not jti:
+                return False
+            return db.session.query(TokenBlocklist.id).filter(TokenBlocklist.jti == jti).first() is not None
+        except Exception:
+            # Fail closed: if error occurs, treat as revoked
+            return True
 
     return app
