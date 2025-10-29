@@ -1,4 +1,4 @@
-# Healthcare Management System
+"PreventVance AI — Leading the Future of Early Health Defense
 
 A comprehensive healthcare management system designed for rural healthcare workers to manage patient diagnostics and care delivery. The system enables early detection and preventive care by identifying individuals at risk of diseases before they become symptomatic.
 
