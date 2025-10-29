@@ -1,32 +1,54 @@
-PreventVance AI — Leading the Future of Early Health Defense
-A comprehensive healthcare management system designed for rural healthcare workers to manage patient diagnostics and care delivery. The system enables early detection and preventive care by identifying individuals at risk of diseases before they become symptomatic.
+# 🩺 PreventVance AI — Leading the Future of Early Health Defense
 
-🎯 Why This Project Matters
-Addressing Healthcare Disparities: This project, PreventVance AI, tackles the critical healthcare gap in rural and underserved areas where access to specialized medical care is limited. By leveraging machine learning and AI technologies, we enable healthcare workers to identify patients at risk of developing serious conditions like diabetes, heart disease, liver disorders, and mental health issues before they become symptomatic. This proactive approach not only saves lives but also reduces healthcare costs by preventing complications that require expensive treatments. The system democratizes access to advanced diagnostic capabilities, ensuring that quality healthcare is not just a privilege of urban areas but reaches every corner of our communities, ultimately creating a more equitable healthcare system for all.
+![Python](https://img.shields.io/badge/Python-3.8+-blue?logo=python)
+![Kaggle](https://img.shields.io/badge/Datasets-Kaggle-blue?logo=kaggle)
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 
-🎯 System Overview
-Project Goal: Address critical gaps in diagnosis and treatment accessibility by enabling early detection and preventive care, particularly in underserved rural areas.
+> **PreventVance AI** is a comprehensive healthcare management system designed for **rural healthcare workers** to manage patient diagnostics and care delivery.  
+> The system enables **early detection and preventive care** by identifying individuals at risk of diseases before they become symptomatic.
 
-Target Users:
+---
 
-Primary: Rural healthcare workers who manage patient diagnostics and care delivery
+## 🎯 Why This Project Matters
 
-Secondary: Corporate wellness programs seeking employee health monitoring solutions
+**PreventVance AI** tackles healthcare disparities by bringing AI-driven diagnostics to **rural and underserved areas**.  
+Through machine learning and data-driven insights, healthcare workers can proactively identify patients at risk of diseases such as:
 
-Value Proposition: Bridge the healthcare delivery gap in rural areas by proactively identifying at-risk individuals before conditions become symptomatic. Transform raw health data into actionable insights, enabling preventive interventions and reducing long-term health complications.
+- 🩸 **Diabetes**
+- ❤️ **Heart Disease**
+- 🧠 **Mental Health Disorders**
+- 🫀 **Liver Conditions**
 
-🚀 Quick Start
-Windows Users (Recommended)
-Double-click start_system.bat in the project root
+This project aims to **democratize access** to advanced medical intelligence, ensuring equitable healthcare access for all — not just those in urban centers.
 
-Wait for both backend and frontend to start
+---
 
-Open browser to: http://localhost:8501
+## 🧭 System Overview
 
-Login with admin credentials: admin / Admin123!
+**Project Goal:**  
+Address critical gaps in diagnosis and treatment accessibility by enabling early detection and preventive care, particularly in underserved rural areas.
 
-Manual Setup
-Bash
+**Target Users:**
+- **Primary:** Rural healthcare workers managing patient diagnostics and care delivery  
+- **Secondary:** Corporate wellness programs seeking employee health monitoring solutions  
+
+**Value Proposition:**  
+Transform raw health data into actionable insights, enabling **preventive interventions** and **reducing long-term health complications**.
+
+---
+
+## 🚀 Quick Start
+
+### 💻 Windows Users (Recommended)
+
+1. Double-click **`start_system.bat`** in the project root  
+2. Wait for both backend and frontend to start  
+3. Open browser at: [http://localhost:8501](http://localhost:8501)  
+4. Login with admin credentials:  
+   **Username:** `admin` | **Password:** `Admin123!`
+
+### ⚙️ Manual Setup
+
 
 # Start Backend
 cd medml-backend
@@ -35,460 +57,288 @@ python run.py
 # Start Frontend (new terminal)
 cd medml-frontend
 streamlit run app.py
-🚀 Features
-For Healthcare Workers (Admin)
-Patient Registration: Complete patient management with ABHA ID integration
+✨ Features
+🩺 For Healthcare Workers (Admin)
+Patient registration with ABHA ID integration
 
-Health Assessments: Comprehensive assessments for Diabetes, Liver, Heart, and Mental Health
+Comprehensive health assessments
 
-AI-Powered Risk Analysis: ML models predict disease risk levels (Low/Medium/High)
+AI-powered risk analysis using ML models
 
-Consultation Management: Book teleconsultations and in-person consultations based on risk levels
+Manage teleconsultations and in-person appointments
 
-Analytics Dashboard: Real-time metrics and risk summaries
+Analytics Dashboard for real-time metrics
 
-Notes Management: Add symptoms and observations for doctors
+Add clinical notes and observations
 
-For Patients
-Health Dashboard: Comprehensive health overview with BMI, risk assessments, and recommendations
+👩‍⚕️ For Patients
+Personalized health dashboard
 
-Disease-Specific Tabs: Detailed risk analysis for each disease category
+Disease-specific risk analysis
 
-Lifestyle Recommendations: Personalized guidance based on risk levels
+AI-driven lifestyle recommendations
 
-Appointment Tracking: View upcoming consultations
+Appointment tracking
 
-PDF Reports: Download comprehensive health reports
+Downloadable PDF reports
 
-Data Sharing: Share selected health information
+Selective data sharing
 
-Technical Features
-ML Integration: Integrates the best-performing pre-trained models (e.g., XGBoost, LightGBM) selected from a rigorous data science pipeline for high-accuracy predictions.
+🧠 Technical Highlights
+ML Integration: Champion models (XGBoost, LightGBM, RF)
 
-AI Recommendations: Gemini API-powered personalized lifestyle guidance
+AI Recommendations: Google Gemini API-powered insights
 
-Secure Authentication: JWT-based authentication with role-based access control
+Secure Authentication: JWT-based, role-based access
 
-PDF Generation: Dynamic report generation with selective sections
-
-Responsive Design: Works on multiple device types
+Responsive Design: Optimized Streamlit frontend
 
 Real-time Analytics: Live dashboard metrics
 
 🏗️ System Architecture
-Backend (Flask)
-RESTful API: JSON-based communication
+🧩 Backend (Flask)
+RESTful JSON APIs
 
-Database: SQLite with SQLAlchemy ORM
+SQLite + SQLAlchemy ORM
 
-Authentication: JWT tokens with refresh mechanism
+JWT Authentication
 
-ML Models: Pre-trained, production-ready models. These models are the champions from a comprehensive ML pipeline that trained and evaluated numerous classifiers (XGBoost, LightGBM, RF, etc.) on real-world datasets to ensure the highest accuracy for each specific disease.
+AI Integration via Gemini API
 
-AI Integration: Google Gemini API for recommendations
+Pre-trained ML models for each disease category
 
-Frontend (Streamlit)
-Admin Dashboard: Patient management and analytics
+💡 Frontend (Streamlit)
+Admin & Patient dashboards
 
-Patient Portal: Health monitoring and recommendations
+Intuitive, responsive UI
 
-Responsive UI: Modern, intuitive interface
+Real-time synchronization
 
-Real-time Updates: Live data synchronization
-
-Database Schema
-Users: Healthcare workers (admins)
-
-Patients: Patient demographic and health data
-
-Assessments: Disease-specific health parameters
-
-Risk Predictions: ML model outputs with risk levels
-
-Recommendations: AI-generated lifestyle guidance
-
-Consultations: Appointment management
-
-Notes: Doctor communication
+🗄️ Database Schema Overview
+Table	Description
+Users	Healthcare workers and admins
+Patients	Demographics and health data
+Assessments	Disease-specific parameters
+Risk Predictions	ML risk outputs
+Recommendations	AI lifestyle suggestions
+Consultations	Appointment details
+Notes	Doctor-patient communication
 
 📋 Prerequisites
-Python 3.8 or higher
+Python 3.8+
 
-pip (Python package manager)
+pip
 
-Git (for cloning the repository)
+Git
+
+Windows 10/11 or compatible OS
 
 🛠️ Installation & Setup
-Prerequisites
-Before you begin, ensure you have the following installed:
-
-Python 3.8 or higher (Download Python)
-
-pip (usually comes with Python)
-
-Git (Download Git)
-
-Windows 10/11 (for batch files) or any OS for manual setup
-
-Step 1: Clone the Repository
-Bash
-
+Step 1: Clone Repository
+bash
+Copy code
 git clone https://github.com/yourusername/HealthCare-App.git
 cd HealthCare-App
 Step 2: Install Dependencies
-Backend Dependencies
-Bash
-
+bash
+Copy code
+# Backend
 cd medml-backend
 pip install -r requirements.txt
-Frontend Dependencies
-Bash
 
+# Frontend
 cd ../medml-frontend
 pip install -r requirements.txt
 Step 3: Initialize Database
-Bash
-
+bash
+Copy code
 cd ../medml-backend
 python create_admin.py
-This creates the database and sets up the default admin account.
-
 Step 4: Start the Application
-Option A: Quick Start (Windows)
-Bash
+Option A (Windows Quick Start):
 
+bash
+Copy code
 cd ..
 start_system.bat
-Option B: Manual Startup
-Terminal 1 - Backend:
+Option B (Manual):
 
-Bash
-
+bash
+Copy code
 cd medml-backend
 python run.py
-Wait for: Running on http://127.0.0.1:5000
+Then:
 
-Terminal 2 - Frontend:
-
-Bash
-
-cd medml-frontend
+bash
+Copy code
+cd ../medml-frontend
 streamlit run app.py
-Wait for: You can now view your Streamlit app in your browser.
-
-Step 5: Access the Application
-Open your browser and navigate to: http://localhost:8501
-
-Step 6: Login
-Use the default credentials:
-
-Admin Username: admin
-
-Admin Password: Admin123!
-
-⚠️ Troubleshooting Setup Issues
-Common Setup Problems
-Backend won't start:
-
-Bash
-
-# Check if port 5000 is available
-netstat -ano | findstr :5000
-
-# Kill process using port 5000 (Windows)
-taskkill /PID <PID_NUMBER> /F
-
-# Reinstall dependencies
-cd medml-backend
-pip install -r requirements.txt --force-reinstall
-Frontend won't load:
-
-Bash
-
-# Install Streamlit
-pip install streamlit
-
-# Install frontend dependencies
-cd medml-frontend
-pip install -r requirements.txt
-Database errors:
-
-Bash
-
-# Recreate database
-cd medml-backend
-python create_admin.py
-Rate limiting errors (429):
-
-Bash
-
-# Clear rate limits
-cd medml-backend
-python clear_rate_limits.py
-For detailed troubleshooting, see TROUBLESHOOTING.md
-
 🔑 Default Credentials
 Admin Login
+
 Username: admin
 
 Email: admin@healthcare.com
 
 Password: Admin123!
 
-Test Patient Login
+Test Patient
+
 ABHA ID: 12345678901234
 
 Password: 12345678901234@Default123
 
-Generate Test Data
-For comprehensive testing with 50+ patients:
+📊 Machine Learning Models
+Each disease module uses a champion ML model chosen after extensive evaluation of algorithms (XGBoost, LightGBM, RF, SVM, etc.) on real-world datasets.
 
-Bash
+Disease	Model	Metric
+Diabetes	XGBoost	High F1-score
+Heart Disease	LightGBM	Best ROC-AUC
+Liver Disease	Random Forest	Balanced Accuracy
+Mental Health	XGBoost	Robust Cross-Validation
 
-cd medml-backend
-python comprehensive_test_data_generator.py
-📊 ML Models
-The intelligence of this system comes from a rigorous and data-centric ML pipeline. The models used are not just off-the-shelf; they are the "champion" models selected after exhaustive testing.
+Risk Levels:
 
-Real-World, Relevant Data: The models were trained on real-world datasets, including those specific to Indian demographics, to ensure the highest possible accuracy and relevance for the target population.
+🟢 Low: 0.0 – 0.34
 
-Rigorous Model Selection: For each of the four disease categories, a wide array of machine learning algorithms (such as Logistic Regression, Random Forest, SVM, KNN, XGBoost, and LightGBM) were trained, tuned, and evaluated.
+🟡 Medium: 0.35 – 0.69
 
-Best-in-Class Performance: The system automatically selects and integrates only the best-performing model (based on F1-score and other metrics) for each specific disease. This ensures that the risk prediction for diabetes, for example, uses the most accurate classifier for that unique dataset, which may be different from the best model for heart disease.
-
-This process ensures that PreventVance AI operates with the highest-fidelity predictions possible, moving beyond a one-size-fits-all approach.
-
-Risk Levels
-Low Risk: Preventive care and lifestyle maintenance
-
-Medium Risk: Enhanced monitoring and teleconsultation
-
-High Risk: Urgent care and in-person consultation
+🔴 High: 0.70 – 1.0
 
 🔧 Configuration
-Environment Variables (Optional)
-Bash
-
-# Database
+Environment Variables
+bash
+Copy code
 DATABASE_URL=sqlite:///path/to/database.db
-
-# Security
 SECRET_KEY=your-secret-key
 JWT_SECRET_KEY=your-jwt-secret-key
-
-# AI Integration
 GEMINI_API_KEY=your-gemini-api-key
-
-# CORS
 CORS_ORIGINS=http://localhost:8501,http://127.0.0.1:8501
-Risk Thresholds
-The system uses configurable risk thresholds:
-
-Low: 0.0 - 0.34
-
-Medium: 0.35 - 0.69
-
-High: 0.70 - 1.0
-
 🧪 Testing
-Automated Testing
-Bash
-
-# System-wide tests
+Automated Tests
+bash
+Copy code
 python test_system.py
-
-# Frontend-specific tests
 cd tests
 python streamlit_frontend_checks.py
 Manual Testing
-Follow comprehensive test cases in run_manual_checks.md:
+Refer to run_manual_checks.md for:
 
-Admin login and dashboard access
+Login flows
 
-Patient registration and assessment flow
+Risk analysis
 
-ML prediction triggering
+Consultation management
 
-Patient dashboard and reports
+Error handling
 
-Error handling scenarios
+Generate 50+ test patients:
 
-Test Data Generation
-Generate 50+ test patients for intensive testing:
-
-Bash
-
+bash
+Copy code
 cd medml-backend
 python comprehensive_test_data_generator.py
-python verify_test_data.py
-📱 Usage
-For Healthcare Workers
-Login with admin credentials
-
-Add New User to register patients
-
-Complete Health Assessments for all 4 disease categories
-
-Run Risk Analysis to get ML predictions
-
-Book Consultations based on risk levels
-
-Add Notes for doctors
-
-View Analytics on the dashboard
-
-For Patients
-Login with ABHA ID and password
-
-View Health Overview with risk assessments
-
-Check Disease-Specific Tabs for detailed analysis
-
-Review Lifestyle Recommendations
-
-Download PDF Reports
-
-Share Health Information
-
 🔒 Security Features
-JWT Authentication: Secure token-based authentication
+JWT Authentication
 
-Password Hashing: Bcrypt encryption for passwords
+Bcrypt Password Hashing
 
-Role-Based Access: Admin and patient role separation
+Role-Based Access Control
 
-Rate Limiting: API rate limiting to prevent abuse
+Rate Limiting
 
-CORS Protection: Cross-origin resource sharing controls
+CORS Protection
 
-Token Revocation: JWT token blacklisting for logout
+Token Revocation
 
-📈 Analytics & Reporting
-Admin Dashboard Metrics
-Today's registrations
+📈 Analytics & Reports
+Admin Dashboard:
 
-Users at risk by disease category
+Daily patient registrations
 
-Risk level distributions
+Risk distribution metrics
 
-Patient management statistics
+Disease-wise analytics
 
-Patient Reports
-Comprehensive health summaries
+Patient Reports:
 
-Risk assessment details
+Risk summaries
 
-Lifestyle recommendations
+Lifestyle guidance
 
 Medical history
 
 Consultation records
 
 🚨 Troubleshooting
-Quick Fixes
-Bash
+Common fixes:
 
-# Clear rate limits
+bash
+Copy code
 cd medml-backend
 python clear_rate_limits.py
-
-# Recreate database
 python create_admin.py
-
-# Check system status
 python test_system.py
-Common Issues
-Rate Limiting: Run python clear_rate_limits.py
+If backend port 5000 is busy:
 
-Backend Won't Start: Check port 5000 availability
-
-Frontend Won't Load: Ensure backend is running
-
-ML Models Missing: Check models_store/ directory
-
-Database Errors: Recreate with python create_admin.py
-
-Detailed Troubleshooting
-See TROUBLESHOOTING.md for comprehensive solutions to:
-
-Authentication issues
-
-ML prediction failures
-
-Database problems
-
-API connectivity issues
-
-Performance optimization
+bash
+Copy code
+netstat -ano | findstr :5000
+taskkill /PID <PID_NUMBER> /F
+For full details, see TROUBLESHOOTING.md.
 
 🤝 Contributing
-Fork the repository
+Fork the repo
 
-Create a feature branch
+Create your branch
 
 Make your changes
 
 Run tests
 
-Submit a pull request
+Submit a PR
 
 📄 License
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the MIT License.
 
-🆘 Support
-For support and questions:
+swift
+Copy code
+MIT License
 
-Check the troubleshooting section
+Copyright (c) 2025
 
-Run the test suite to identify issues
-
-Review the logs for error details
-
+Permission is hereby granted, free of charge, to any person obtaining a copy...
 📚 Documentation
-Setup Guide: HOW_TO_RUN.md - Complete installation and startup instructions
+🧭 HOW_TO_RUN.md — Setup guide
 
-Troubleshooting: TROUBLESHOOTING.md - Comprehensive problem-solving guide
+🧩 BACKEND_DISCOVERY.md — API documentation
 
-Backend API: BACKEND_DISCOVERY.md - Complete API documentation
+💡 setup_frontend.md — Streamlit configuration
 
-Frontend Setup: setup_frontend.md - Streamlit frontend configuration
+🧪 run_manual_checks.md — Manual tests
 
-Test Cases: run_manual_checks.md - Manual testing procedures
-
-Test Data: medml-backend/TEST_DATA_GENERATOR_README.md - Test data generation
-
-Changelog: CHANGELOG_STREAMLIT.md - Recent changes and improvements
+🧮 TEST_DATA_GENERATOR_README.md — Test data generation
 
 🔮 Future Enhancements
-Mobile app development
+Mobile app integration 📱
 
-Integration with hospital systems
+Multi-language support 🌐
 
-Advanced analytics and reporting
+Real-time notifications 🔔
 
-Multi-language support
+Cloud deployment ☁️
 
-Cloud deployment options
+Wearable device integration ⌚
 
-Real-time notifications
-
-Integration with wearable devices
-
-Enhanced ML model accuracy
-
-Telemedicine integration
-
-Patient portal mobile app
+Advanced analytics & visualization 📊
 
 📞 Support
-For technical support:
+For technical assistance:
 
-Check TROUBLESHOOTING.md for common issues
+Review TROUBLESHOOTING.md
 
-Run python test_system.py for system diagnostics
+Run python test_system.py
 
-Review logs for detailed error information
+Check system logs
 
-Follow manual test cases in run_manual_checks.md
-
-PreventVance AI - Empowering rural healthcare through technology
+Email support or open a GitHub issue
