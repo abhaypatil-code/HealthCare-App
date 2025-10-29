@@ -8,7 +8,7 @@ import streamlit as st
 # Color Palette - Healthcare Light & Calm Theme
 THEME_COLORS = {
     # Primary Colors (Trust & Brand)
-    'primary': '#0067A5',         # Deep Cerulean
+    'primary': '#0067A5',         # Deep Cerulean (Pantone 301 C)
     'primary_dark': '#004F80',    # Darker shade for hover/active
     'primary_light': '#E6F0F6',   # Very light tint for backgrounds
     
@@ -17,335 +17,283 @@ THEME_COLORS = {
     
     # Base & Text Colors (Cleanliness & Readability)
     'background': '#FFFFFF',      # Pure White (main background)
-    'surface': '#F4F7F9',        # Off-white (for content sections)
+    'surface': '#F4F7F9',        # Off-white (for content sections, cards)
     'text_primary': '#253B4A',    # Dark Slate Blue (for headings)
     'text_secondary': '#5A6D7A',  # Medium Gray (for body text)
     'border': '#DDE4E9',          # Light Gray (for borders/dividers)
     
     # Accent & Status Colors (Action & Information)
     'accent': '#007BFF',          # Active Blue (for buttons/links)
-    'success': '#28A745',         # Reassuring Green (for Success)
-    'warning': '#FFC107',         # Soft Yellow (for Warning)
-    'error': '#DC3545',           # Clear Red (for Error/Urgent)
-    
-    # Additional colors for compatibility
-    'primary_light': '#E6F0F6',   # Alias for primary_light
-    'secondary_light': '#A0D2EB', # Alias for secondary
-    'secondary_dark': '#004F80',  # Alias for primary_dark
-    'surface_light': '#F4F7F9',  # Alias for surface
-    'text_light': '#5A6D7A',     # Alias for text_secondary
-    'success_light': '#28A745',   # Alias for success
-    'warning_light': '#FFC107',  # Alias for warning
-    'error_light': '#DC3545',    # Alias for error
-    'info': '#007BFF',           # Alias for accent
-    'info_light': '#007BFF',     # Alias for accent
-    'border_light': '#DDE4E9',    # Alias for border
-    'accent_light': '#007BFF',   # Alias for accent
+    'success': '#28A745',         # Reassuring Green
+    'warning': '#FFC107',         # Soft Yellow
+    'error': '#DC3545',           # Clear Red
 }
 
 def apply_light_theme():
-    """Apply the enhanced light theme CSS to Streamlit with compact spacing and sticky header."""
+    """Apply the enhanced light theme CSS to Streamlit."""
     st.markdown(f"""
     <style>
     /* Import Google Fonts for better typography */
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
     
-    /* Root variables for consistent theming - Healthcare Light & Calm */
+    /* Root variables for consistent theming */
     :root {{
-        /* Primary Colors (Trust & Brand) */
+        --font-family: 'Inter', sans-serif;
+        
         --color-primary: {THEME_COLORS['primary']};
         --color-primary-dark: {THEME_COLORS['primary_dark']};
         --color-primary-light: {THEME_COLORS['primary_light']};
         
-        /* Secondary Colors (Calm & Support) */
         --color-secondary: {THEME_COLORS['secondary']};
         
-        /* Base & Text Colors (Cleanliness & Readability) */
-        --color-bg-white: {THEME_COLORS['background']};
-        --color-bg-light-gray: {THEME_COLORS['surface']};
+        --color-background: {THEME_COLORS['background']};
+        --color-surface: {THEME_COLORS['surface']};
         --color-text-primary: {THEME_COLORS['text_primary']};
         --color-text-secondary: {THEME_COLORS['text_secondary']};
         --color-border: {THEME_COLORS['border']};
         
-        /* Accent & Status Colors (Action & Information) */
-        --color-accent-cta: {THEME_COLORS['accent']};
         --color-success: {THEME_COLORS['success']};
         --color-warning: {THEME_COLORS['warning']};
         --color-danger: {THEME_COLORS['error']};
+        --color-info: {THEME_COLORS['accent']};
         
-        /* Legacy variable names for compatibility */
-        --primary-color: {THEME_COLORS['primary']};
-        --primary-light: {THEME_COLORS['primary_light']};
-        --primary-dark: {THEME_COLORS['primary_dark']};
-        --secondary-color: {THEME_COLORS['secondary']};
-        --background-color: {THEME_COLORS['background']};
-        --surface-color: {THEME_COLORS['surface']};
-        --text-primary: {THEME_COLORS['text_primary']};
-        --text-secondary: {THEME_COLORS['text_secondary']};
-        --success-color: {THEME_COLORS['success']};
-        --warning-color: {THEME_COLORS['warning']};
-        --error-color: {THEME_COLORS['error']};
-        --info-color: {THEME_COLORS['accent']};
-        --border-color: {THEME_COLORS['border']};
+        --border-radius-sm: 0.25rem;
+        --border-radius-md: 0.5rem;
+        --border-radius-lg: 0.75rem;
+        
+        --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
     }}
     
     /* Global styles */
     .stApp {{
-        background-color: var(--background-color);
-        font-family: 'Inter', sans-serif;
-        color: var(--text-primary) !important;
+        background-color: var(--color-background);
+        font-family: var(--font-family);
+        color: var(--color-text-secondary);
     }}
     
-    /* Ensure all text is visible */
-    .stApp * {{
-        color: inherit;
-    }}
-    
-    /* COMPACT SPACING - Reduce excess padding and margins */
-    .main .block-container {{
-        padding-top: 1rem !important;
-        padding-bottom: 1rem !important;
-        padding-left: 1rem !important;
-        padding-right: 1rem !important;
-        max-width: 1400px !important;
-        color: var(--text-primary) !important;
-    }}
-    
-    /* STICKY HEADER - Make Streamlit header sticky and compact */
-    header[data-testid="stHeader"] {{
-        position: fixed !important;
-        top: 0 !important;
-        left: 0 !important;
-        right: 0 !important;
-        z-index: 999 !important;
-        background-color: var(--background-color) !important;
-        border-bottom: 1px solid var(--border-color) !important;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
-        padding: 0.5rem 1rem !important;
-        height: auto !important;
-    }}
-    
-    /* Adjust main content to account for sticky header */
-    .main .block-container {{
-        padding-top: 4rem !important;
-    }}
-    
-    /* Compact spacing for all Streamlit components */
-    .stExpander, .stContainer, .stMarkdown, .stMetric, .stDataFrame, 
-    .stButton, .stForm, .stColumns, .stTabs, .stAlert, .stSubheader, 
-    .stTitle, .stInfo, .stWarning, .stSuccess, .stError, .stCaption {{
-        margin-bottom: 0.5rem !important;
-    }}
-    
-    .element-container {{
-        margin-bottom: 0.75rem !important;
-    }}
-    
-    /* Compact divider spacing */
-    hr {{
-        margin: 0.75rem 0 !important;
-    }}
-    
-    /* Reduce spacing in metric cards */
-    .metric-card {{
-        margin-bottom: 0.75rem !important;
-    }}
-    
-    /* Headers */
     h1, h2, h3, h4, h5, h6 {{
-        color: var(--text-primary) !important;
+        color: var(--color-text-primary);
         font-weight: 600;
-        margin-bottom: 0.75rem !important;
     }}
     
-    /* Ensure all text elements are visible - consolidated rules */
-    p, span, div, label, .stMarkdown, .stMarkdown p, .stText,
-    .stSelectbox label, .stTextInput label, .stTextArea label,
-    .stNumberInput label, .stDateInput label, .stTimeInput label,
-    .stCheckbox label, .stRadio label, .stMultiselect label,
-    .stWidget label, .element-container {{
-        color: var(--text-primary) !important;
+    h1 {{ font-size: 2rem; }}
+    h2 {{ font-size: 1.75rem; }}
+    h3 {{ font-size: 1.25rem; }}
+    h4 {{ font-size: 1.1rem; }}
+    
+    /* Center layout and add max-width for large screens */
+    .main .block-container {{
+        max-width: 1200px;
+        padding-top: 1rem;
+        padding-bottom: 2rem;
     }}
     
-    .element-container * {{
-        color: inherit !important;
+    /* Sticky Header */
+    header[data-testid="stHeader"] {{
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 1000;
+        background-color: var(--color-background);
+        border-bottom: 1px solid var(--color-border);
+        box-shadow: var(--shadow-sm);
     }}
     
-    /* Sidebar styling */
-    .css-1d391kg {{
-        background-color: var(--surface-color);
-        border-right: 1px solid var(--border-color);
+    /* Adjust main content for sticky header */
+    .main .block-container {{
+        padding-top: 5rem;
     }}
     
-    /* Button styling - consolidated */
+    /* --- Component Styling --- */
+
+    /* Buttons */
     .stButton > button {{
-        background-color: var(--primary-color);
-        color: white;
-        border: none;
-        border-radius: 8px;
+        border-radius: var(--border-radius-md);
         font-weight: 500;
+        padding: 0.5rem 1rem;
         transition: all 0.2s ease;
     }}
-    
-    .stButton > button:hover {{
-        background-color: var(--primary-dark);
-        transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+    .stButton > button[kind="primary"] {{
+        background-color: var(--color-primary);
+        color: white;
+        border: 1px solid var(--color-primary);
     }}
-    
+    .stButton > button[kind="primary"]:hover {{
+        background-color: var(--color-primary-dark);
+        border-color: var(--color-primary-dark);
+    }}
     .stButton > button[kind="secondary"] {{
-        background-color: var(--surface-color);
-        color: var(--text-primary);
-        border: 1px solid var(--border-color);
+        background-color: var(--color-background);
+        color: var(--color-text-primary);
+        border: 1px solid var(--color-border);
+    }}
+    .stButton > button[kind="secondary"]:hover {{
+        background-color: var(--color-surface);
+        border-color: var(--color-secondary);
     }}
     
-    /* Form elements - consolidated */
-    .stTextInput > div > div > input,
-    .stTextArea > div > div > textarea,
-    .stSelectbox > div > div > select {{
-        border: 1px solid var(--border-color);
-        border-radius: 8px;
-        background-color: var(--background-color);
-        color: var(--text-primary);
+    /* Form Inputs */
+    .stTextInput input, .stPassword input, .stNumberInput input, 
+    .stTextArea textarea, .stSelectbox [data-baseweb="select"] {{
+        border-radius: var(--border-radius-md);
+        border: 1px solid var(--color-border);
+        background-color: var(--color-background);
+        color: var(--color-text-primary);
+    }}
+    .stTextInput input:focus, .stPassword input:focus, .stNumberInput input:focus,
+    .stTextArea textarea:focus, .stSelectbox [data-baseweb="select"]:focus {{
+        border-color: var(--color-primary);
+        box-shadow: 0 0 0 2px var(--color-primary-light);
     }}
     
-    .stTextInput > div > div > input:focus,
-    .stTextArea > div > div > textarea:focus,
-    .stSelectbox > div > div > select:focus {{
-        border-color: var(--primary-color);
-        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    /* Tabs */
+    button[data-baseweb="tab"] {{
+        font-size: 1rem;
+        font-weight: 500;
+        color: var(--color-text-secondary);
+    }}
+    button[data-baseweb="tab"][aria-selected="true"] {{
+        color: var(--color-primary);
+        border-bottom-color: var(--color-primary);
     }}
     
-    /* Metric cards */
-    .metric-card {{
-        background-color: var(--surface-color);
-        border: 1px solid var(--border-color);
-        border-radius: 12px;
-        padding: 1.5rem;
-        margin-bottom: 1rem;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    }}
-    
-    /* Risk level indicators */
-    .risk-high {{
-        background-color: var(--error-color);
-        color: white;
-        padding: 0.5rem 1rem;
-        border-radius: 20px;
-        font-weight: 600;
-        font-size: 0.875rem;
-    }}
-    
-    .risk-medium {{
-        background-color: var(--warning-color);
-        color: white;
-        padding: 0.5rem 1rem;
-        border-radius: 20px;
-        font-weight: 600;
-        font-size: 0.875rem;
-    }}
-    
-    .risk-low {{
-        background-color: var(--success-color);
-        color: white;
-        padding: 0.5rem 1rem;
-        border-radius: 20px;
-        font-weight: 600;
-        font-size: 0.875rem;
-    }}
-    
-    /* Alert boxes - consolidated */
+    /* Alerts (Info, Error, etc.) */
     .stAlert {{
-        border-radius: 8px;
+        border-radius: var(--border-radius-md);
         border: none;
     }}
-    
-    .stAlert[data-testid="alert-success"] {{
-        background-color: var(--success-color);
+    .stAlert[data-baseweb="notification-success"] {{
+        background-color: var(--color-success);
         color: white;
     }}
-    
-    .stAlert[data-testid="alert-warning"] {{
-        background-color: var(--warning-color);
+    .stAlert[data-baseweb="notification-warning"] {{
+        background-color: var(--color-warning);
+        color: var(--color-text-primary); /* Better contrast on yellow */
+    }}
+    .stAlert[data-baseweb="notification-error"] {{
+        background-color: var(--color-danger);
         color: white;
     }}
-    
-    .stAlert[data-testid="alert-error"] {{
-        background-color: var(--error-color);
-        color: white;
+    .stAlert[data-baseweb="notification-info"] {{
+        background-color: var(--color-primary-light);
+        color: var(--color-primary-dark);
+        border: 1px solid var(--color-primary);
     }}
     
-    .stAlert[data-testid="alert-info"] {{
-        background-color: var(--info-color);
-        color: white;
+    /* Expander */
+    .stExpander {{
+        border-radius: var(--border-radius-md);
+        border: 1px solid var(--color-border);
+    }}
+    .stExpander header {{
+        background-color: var(--color-surface);
     }}
     
-    /* Data tables */
+    /* Dataframe */
     .stDataFrame {{
-        border-radius: 8px;
-        overflow: hidden;
-        border: 1px solid var(--border-color);
+        border-radius: var(--border-radius-lg);
+        border: 1px solid var(--color-border);
     }}
     
-    /* Navigation bar */
+    /* Divider */
+    hr {{
+        margin: 1.5rem 0;
+        background: var(--color-border);
+    }}
+
+    /* --- Custom Utility Classes --- */
+    
+    /* Main Navigation Bar */
     .navbar {{
-        background-color: var(--surface-color);
-        border-bottom: 1px solid var(--border-color);
-        padding: 1rem 0;
-        margin-bottom: 2rem;
+        width: 100%;
+        padding: 0.75rem 0;
+        border-bottom: 1px solid var(--color-border);
+        background-color: var(--color-background);
     }}
-    
     .navbar-brand {{
-        color: var(--primary-color);
-        font-size: 1.5rem;
+        color: var(--color-primary);
+        font-size: 1.25rem;
         font-weight: 700;
         text-decoration: none;
     }}
-    
     .navbar-nav {{
         display: flex;
-        gap: 2rem;
+        gap: 1rem;
         align-items: center;
     }}
     
-    .navbar-nav a {{
-        color: var(--text-secondary);
-        text-decoration: none;
-        font-weight: 500;
-        transition: color 0.2s ease;
-    }}
-    
-    .navbar-nav a:hover {{
-        color: var(--primary-color);
-    }}
-    
-    /* Cards */
+    /* Card Component */
     .card {{
-        background-color: var(--surface-color);
-        border: 1px solid var(--border-color);
-        border-radius: 12px;
+        background-color: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: var(--border-radius-lg);
         padding: 1.5rem;
         margin-bottom: 1rem;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        box-shadow: var(--shadow-sm);
+    }}
+
+    /* Metric Card */
+    .metric-card {{
+        background-color: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-left: 4px solid var(--color-primary);
+        border-radius: var(--border-radius-md);
+        padding: 1.25rem 1.5rem;
+    }}
+    .metric-card.success {{ border-left-color: var(--color-success); }}
+    .metric-card.warning {{ border-left-color: var(--color-warning); }}
+    .metric-card.danger {{ border-left-color: var(--color-danger); }}
+    
+    /* Risk Badges */
+    .risk-badge {{
+        padding: 0.25rem 0.75rem;
+        border-radius: 9999px;
+        font-weight: 600;
+        font-size: 0.875rem;
+        color: white;
+        display: inline-block;
+    }}
+    .risk-high {{ background-color: var(--color-danger); }}
+    .risk-medium {{ background-color: var(--color-warning); color: var(--color-text-primary); }}
+    .risk-low {{ background-color: var(--color-success); }}
+    .risk-na {{ background-color: var(--color-border); color: var(--color-text-secondary); }}
+
+    /* Priority Recommendation Cards */
+    .priority-card {{
+        padding: 1.25rem;
+        border-radius: var(--border-radius-md);
+        margin: 0.75rem 0;
+        border: 1px solid;
+    }}
+    .priority-high {{
+        background-color: #fef2f2; /* Red 50 */
+        border-color: #f87171; /* Red 400 */
+        color: #b91c1c; /* Red 700 */
+    }}
+    .priority-medium {{
+        background-color: #fffbeb; /* Amber 50 */
+        border-color: #fbbf24; /* Amber 400 */
+        color: #b45309; /* Amber 700 */
+    }}
+    .priority-low {{
+        background-color: #f0fdf4; /* Green 50 */
+        border-color: #4ade80; /* Green 400 */
+        color: #15803d; /* Green 700 */
+    }}
+    .priority-card h5 {{
+        font-size: 1rem;
+        font-weight: 600;
+        margin: 0 0 0.25rem 0;
+        color: inherit; /* Inherit from parent card */
+    }}
+    .priority-card p {{
+        margin: 0;
+        color: var(--color-text-primary);
+        font-size: 0.95rem;
     }}
     
-    /* Custom scrollbar */
-    ::-webkit-scrollbar {{
-        width: 8px;
-    }}
-    
-    ::-webkit-scrollbar-track {{
-        background: var(--surface-color);
-    }}
-    
-    ::-webkit-scrollbar-thumb {{
-        background: var(--border-color);
-        border-radius: 4px;
-    }}
-    
-    ::-webkit-scrollbar-thumb:hover {{
-        background: var(--secondary-color);
-    }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -358,8 +306,8 @@ def create_navbar(user_name, user_role):
                 🩺 HealthCare System
             </div>
             <div class="navbar-nav">
-                <span style="color: var(--text-secondary); font-weight: 500;">{user_name}</span>
-                <span style="color: var(--text-light); font-size: 0.875rem; background: var(--primary-color); color: white; padding: 0.25rem 0.75rem; border-radius: 12px;">{user_role.title()}</span>
+                <span style="color: var(--color-text-secondary); font-weight: 500;">{user_name}</span>
+                <span style="background: var(--color-primary); color: white; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.8rem; font-weight: 500;">{user_role.title()}</span>
             </div>
         </div>
     </div>
@@ -367,28 +315,30 @@ def create_navbar(user_name, user_role):
 
 def create_metric_card(label, value, help_text=None, color="primary"):
     """Create a styled metric card."""
-    color_class = f"color: var(--{color}-color);" if color in ['primary', 'success', 'warning', 'error', 'info'] else ""
+    color_map = {
+        "primary": "primary",
+        "success": "success",
+        "warning": "warning",
+        "error": "danger" # Map to danger class
+    }
+    color_class = color_map.get(color, "primary")
     
     st.markdown(f"""
-    <div class="metric-card">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-            <div>
-                <h3 style="margin: 0; color: var(--text-secondary); font-size: 0.875rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em;">{label}</h3>
-                <p style="font-size: 2rem; font-weight: 700; margin: 0.5rem 0 0 0; {color_class}">{value}</p>
-                {f'<p style="font-size: 0.875rem; color: var(--text-light); margin: 0.25rem 0 0 0;">{help_text}</p>' if help_text else ""}
-            </div>
-        </div>
+    <div class="metric-card {color_class}">
+        <h3 style="margin: 0; color: var(--color-text-secondary); font-size: 0.9rem; font-weight: 500; text-transform: uppercase;">{label}</h3>
+        <p style="font-size: 2.25rem; font-weight: 700; margin: 0.5rem 0 0 0; color: var(--color-text-primary);">{value}</p>
+        {f'<p style="font-size: 0.875rem; color: var(--color-text-secondary); margin: 0.25rem 0 0 0;">{help_text}</p>' if help_text else ""}
     </div>
     """, unsafe_allow_html=True)
 
 def create_risk_badge(level):
     """Create a styled risk level badge."""
-    level_lower = level.lower()
+    level_lower = str(level).lower()
     if level_lower == "high":
-        return f'<span class="risk-high">🚨 {level.upper()}</span>'
+        return f'<span class="risk-badge risk-high">High</span>'
     elif level_lower == "medium":
-        return f'<span class="risk-medium">⚠️ {level.upper()}</span>'
+        return f'<span class="risk-badge risk-medium">Medium</span>'
     elif level_lower == "low":
-        return f'<span class="risk-low">✅ {level.upper()}</span>'
+        return f'<span class="risk-badge risk-low">Low</span>'
     else:
-        return f'<span style="background-color: var(--secondary-color); color: white; padding: 0.5rem 1rem; border-radius: 20px; font-weight: 600; font-size: 0.875rem;">{level.upper()}</span>'
+        return f'<span class="risk-badge risk-na">N/A</span>'
