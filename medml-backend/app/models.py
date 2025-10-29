@@ -26,7 +26,7 @@ class User(db.Model):
     created_at = db.Column(db.DateTime(timezone=True), server_default=func.now())
     
     # 1:N relationship (Admin -> Patients)
-    patients = db.relationship('Patient', back_populates='created_by_admin')
+    patients = db.relationship('Patient', back_populates='created_by_admin', passive_deletes=True)
     
     # 1:N relationship (Admin -> Consultations)
     booked_consultations = db.relationship('Consultation', back_populates='booked_by_admin')
@@ -70,8 +70,8 @@ class Patient(db.Model):
     password_hash = db.Column(db.String(256), nullable=False) # For patient login
     state_name = db.Column(db.String(100), nullable=True)
     
-    created_by_admin_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False) # Renamed
-    created_by_admin = db.relationship('User', back_populates='patients') # Renamed
+    created_by_admin_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    created_by_admin = db.relationship('User', back_populates='patients')
     created_at = db.Column(db.DateTime(timezone=True), server_default=func.now())
     updated_at = db.Column(db.DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     
@@ -187,11 +187,11 @@ class BaseAssessment(db.Model):
     __abstract__ = True
     id = db.Column(db.Integer, primary_key=True)
     # UPDATED: Removed unique=True for 1:N
-    patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False) 
+    patient_id = db.Column(db.Integer, db.ForeignKey('patients.id', ondelete='CASCADE'), nullable=False) 
     assessed_at = db.Column(db.DateTime(timezone=True), server_default=func.now())
     
     # Renamed from updated_by_user_id
-    assessed_by_admin_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    assessed_by_admin_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
 
 class DiabetesAssessment(BaseAssessment):
     __tablename__ = 'diabetes_assessments'
@@ -349,7 +349,7 @@ class RiskPrediction(db.Model):
     __tablename__ = 'risk_predictions'
     id = db.Column(db.Integer, primary_key=True)
     # UPDATED: Removed unique=True for 1:N
-    patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False) 
+    patient_id = db.Column(db.Integer, db.ForeignKey('patients.id', ondelete='CASCADE'), nullable=False) 
     patient = db.relationship('Patient', back_populates='risk_predictions')
     
     diabetes_risk_score = db.Column(db.Float, nullable=True) # Renamed
@@ -397,8 +397,36 @@ class RiskPrediction(db.Model):
             "predicted_at": self.predicted_at.isoformat()
         }
 
-# LifestyleRecommendation model is NOT used, as per SRD goal
-# to use live Gemini API calls.
+class LifestyleRecommendation(db.Model):
+    """
+    Personalized health guidance based on risk levels.
+    """
+    __tablename__ = 'lifestyle_recommendations'
+    id = db.Column(db.Integer, primary_key=True)
+    patient_id = db.Column(db.Integer, db.ForeignKey('patients.id', ondelete='CASCADE'), nullable=False)
+    disease_type = db.Column(db.String(50), nullable=False) # Diabetes/Liver/Heart/MentalHealth/General
+    risk_level = db.Column(db.String(20), nullable=False) # Low/Medium/High
+    category = db.Column(db.String(50), nullable=False) # Diet/Exercise/Sleep/Lifestyle
+    recommendation_text = db.Column(db.Text, nullable=False)
+    priority = db.Column(db.Integer, nullable=True) # for ordering display
+    created_at = db.Column(db.DateTime(timezone=True), server_default=func.now())
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+    
+    # Relationship
+    patient = db.relationship('Patient', backref='lifestyle_recommendations')
+    
+    def to_dict(self):
+        return {
+            "recommendation_id": self.id,
+            "patient_id": self.patient_id,
+            "disease_type": self.disease_type,
+            "risk_level": self.risk_level,
+            "category": self.category,
+            "recommendation_text": self.recommendation_text,
+            "priority": self.priority,
+            "created_at": self.created_at.isoformat(),
+            "is_active": self.is_active
+        }
 
 class Consultation(db.Model):
     """
@@ -406,8 +434,8 @@ class Consultation(db.Model):
     """
     __tablename__ = 'consultations'
     id = db.Column(db.Integer, primary_key=True)
-    patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False)
-    admin_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    patient_id = db.Column(db.Integer, db.ForeignKey('patients.id', ondelete='CASCADE'), nullable=False)
+    admin_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
     
     disease = db.Column(db.String(50), nullable=True) # ADDED
     consultation_type = db.Column(db.String(50), nullable=False) # 'teleconsultation', 'in_person'
@@ -439,8 +467,8 @@ class ConsultationNote(db.Model):
     """
     __tablename__ = 'consultation_notes'
     id = db.Column(db.Integer, primary_key=True)
-    patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False)
-    admin_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    patient_id = db.Column(db.Integer, db.ForeignKey('patients.id', ondelete='CASCADE'), nullable=False)
+    admin_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
     notes = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime(timezone=True), server_default=func.now())
 

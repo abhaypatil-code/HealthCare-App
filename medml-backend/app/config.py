@@ -13,8 +13,29 @@ class Config:
         print("Warning: SECRET_KEY is not set. Using a temporary dev key.")
         SECRET_KEY = 'dev-secret-key' # Allow in dev
 
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or \
-        'sqlite:///' + os.path.join(basedir, 'medml.db')
+    # Database configuration with robust path handling
+    if os.environ.get('DATABASE_URL'):
+        SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL')
+    else:
+        # Try multiple possible database locations
+        possible_paths = [
+            os.path.join(basedir, 'medml.db'),  # In app directory
+            os.path.join(os.path.dirname(basedir), 'medml.db'),  # In backend directory
+            os.path.join(os.path.dirname(os.path.dirname(basedir)), 'medml.db'),  # In project root
+        ]
+        
+        db_path = None
+        for path in possible_paths:
+            if os.path.exists(path):
+                db_path = path
+                break
+        
+        if not db_path:
+            # Create database in app directory if none exists
+            db_path = os.path.join(basedir, 'medml.db')
+        
+        SQLALCHEMY_DATABASE_URI = 'sqlite:///' + os.path.abspath(db_path).replace('\\', '/')
+    
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
     # Base directory for the application
@@ -25,7 +46,7 @@ class Config:
         print("Warning: JWT_SECRET_KEY is not set. Using a temporary dev key.")
         JWT_SECRET_KEY = 'dev-jwt-secret-key' # Allow in dev
         
-    JWT_ACCESS_TOKEN_EXIRES = timedelta(minutes=int(os.environ.get('JWT_ACCESS_TOKEN_EXPIRES_MIN', 15)))
+    JWT_ACCESS_TOKEN_EXPIRES = timedelta(minutes=int(os.environ.get('JWT_ACCESS_TOKEN_EXPIRES_MIN', 15)))
     JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=int(os.environ.get('JWT_REFRESH_TOKEN_EXPIRES_DAYS', 30)))
     
     GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
@@ -41,8 +62,9 @@ class Config:
 
 class DevelopmentConfig(Config):
     DEBUG = True
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or \
-        'sqlite:///' + os.path.join(basedir, 'medml.db')
+    # Database URI is inherited from Config class
+    # Disable rate limiting in development
+    RATELIMIT_ENABLED = False
 
 
 class TestingConfig(Config):
@@ -58,14 +80,16 @@ class ProductionConfig(Config):
     TESTING = False
     
     # In production, SECRET_KEY and JWT_SECRET_KEY *must* be set
-    if not os.environ.get('SECRET_KEY'):
-         raise ValueError("No SECRET_KEY set for Flask application in production")
-    if not os.environ.get('JWT_SECRET_KEY'):
-        raise ValueError("No JWT_SECRET_KEY set for Flask application in production")
-    
-    # --- ADDED: Enforce Gemini Key in Prod ---
-    if not Config.GEMINI_API_KEY:
-        raise ValueError("No GEMINI_API_KEY set for Flask application in production")
+    def __init__(self):
+        super().__init__()
+        if not os.environ.get('SECRET_KEY'):
+             raise ValueError("No SECRET_KEY set for Flask application in production")
+        if not os.environ.get('JWT_SECRET_KEY'):
+            raise ValueError("No JWT_SECRET_KEY set for Flask application in production")
+        
+        # --- ADDED: Enforce Gemini Key in Prod ---
+        if not os.environ.get('GEMINI_API_KEY'):
+            raise ValueError("No GEMINI_API_KEY set for Flask application in production")
 
 config = {
     'development': DevelopmentConfig,

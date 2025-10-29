@@ -1,13 +1,25 @@
 # HealthCare App/medml-backend/app/api/patients.py
 from flask import request, jsonify, current_app
 from . import api_bp
-from app.models import db, Patient, User, RiskPrediction
+from app.models import Patient, User, RiskPrediction
+from app.extensions import limiter, db
 from app.schemas import PatientCreateSchema, PatientUpdateSchema
-from app.api.decorators import admin_required, get_current_admin_id
+from app.api.decorators import admin_required, get_current_admin_id, parse_jwt_identity
 from pydantic import ValidationError
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import or_
+from .responses import (
+    ok,
+    created,
+    bad_request,
+    unauthorized,
+    forbidden,
+    not_found,
+    conflict,
+    unprocessable_entity,
+    server_error,
+)
 
 @api_bp.route('/patients', methods=['POST'])
 @jwt_required()
@@ -17,14 +29,19 @@ def create_patient():
     [Admin Only] Creates a new patient record.
     """
     try:
+        current_app.logger.info(f"Received patient data: {request.json}")
         data = PatientCreateSchema(**request.json)
+        current_app.logger.info(f"Validated patient data: {data}")
     except ValidationError as e:
-        return jsonify(error="Validation Failed", messages=e.errors()), 422
+        current_app.logger.error(f"Validation error: {e.errors()}")
+        return unprocessable_entity(messages=e.errors())
     
     admin_id = get_current_admin_id()
+    if not admin_id:
+        return unauthorized("Admin ID not found")
     
     if Patient.query.filter_by(abha_id=data.abha_id).first():
-        return jsonify(error="Conflict", message="Patient with this ABHA ID already exists"), 409
+        return conflict("Patient with this ABHA ID already exists")
 
     new_patient = Patient(
         name=data.name, # Updated from full_name
@@ -43,25 +60,26 @@ def create_patient():
         db.session.commit()
         current_app.logger.info(f"Admin {admin_id} created patient {new_patient.id} with ABHA ID {new_patient.abha_id}")
         
-        return jsonify(
-            message="Patient created successfully", 
-            patient=new_patient.to_dict(),
-            patient_id=new_patient.id, # Added for frontend state
-            name=new_patient.name # Added for frontend state
-        ), 201
+        return created({
+            "message": "Patient created successfully",
+            "patient": new_patient.to_dict(),
+            "patient_id": new_patient.id,
+            "name": new_patient.name,
+        })
     
     except IntegrityError as e:
         db.session.rollback()
         current_app.logger.error(f"IntegrityError creating patient: {e}")
-        return jsonify(error="Database error", message="Could not create patient. ABHA ID may be taken."), 409
+        return conflict("Could not create patient. ABHA ID may be taken.")
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(f"Error creating patient: {e}")
-        return jsonify(error="Internal server error", message="An unexpected error occurred."), 500
+        return server_error("An unexpected error occurred.")
 
 @api_bp.route('/patients', methods=['GET'])
 @jwt_required()
 @admin_required
+@limiter.limit("100 per minute")  # More permissive limit for patient listing
 def get_patients():
     """
     [Admin Only] Gets a list of all patients, with filtering and sorting
@@ -94,6 +112,8 @@ def get_patients():
                     query = query.filter(disease_filter == 'High').order_by(Patient.created_at.desc())
                 elif sort == 'medium_risk':
                     query = query.filter(disease_filter == 'Medium').order_by(Patient.created_at.desc())
+                elif sort == 'low_risk':
+                    query = query.filter(disease_filter == 'Low').order_by(Patient.created_at.desc())
                 else: # 'recently_added' or default
                     # Show all for that disease, sorted by recency
                     query = query.filter(or_(disease_filter == 'High', disease_filter == 'Medium', disease_filter == 'Low')).order_by(Patient.created_at.desc())
@@ -113,6 +133,13 @@ def get_patients():
                     RiskPrediction.heart_risk_level == 'Medium',
                     RiskPrediction.mental_health_risk_level == 'Medium'
                 )).order_by(Patient.created_at.desc())
+            elif sort == 'low_risk':
+                query = query.join(RiskPrediction).filter(or_(
+                    RiskPrediction.diabetes_risk_level == 'Low',
+                    RiskPrediction.liver_risk_level == 'Low',
+                    RiskPrediction.heart_risk_level == 'Low',
+                    RiskPrediction.mental_health_risk_level == 'Low'
+                )).order_by(Patient.created_at.desc())
             else: # 'recently_added'
                 query = query.order_by(Patient.created_at.desc())
 
@@ -121,11 +148,11 @@ def get_patients():
         # Return list, including latest prediction data for the dashboard view
         patients_data = [p.to_dict(include_latest_prediction=True) for p in patients]
         
-        return jsonify(patients_data), 200 # Return list directly as per api_client
+        return ok(patients_data)
     
     except Exception as e:
         current_app.logger.error(f"Error fetching patients: {e}")
-        return jsonify(error="Internal server error", message=str(e)), 500
+        return server_error(str(e))
 
 
 @api_bp.route('/patients/<int:patient_id>', methods=['GET'])
@@ -136,22 +163,22 @@ def get_patient(patient_id):
     Patient can only access their own.
     """
     # Check permissions
-    jwt_identity = get_jwt_identity()
+    jwt_identity = parse_jwt_identity()
     user_role = jwt_identity.get('role')
     user_id = jwt_identity.get('id')
     
     if user_role == 'patient' and user_id != patient_id:
-        return jsonify(error="Forbidden", message="Patients can only access their own data"), 403
+        return forbidden("Patients can only access their own data")
 
     patient = Patient.query.get_or_404(patient_id)
     
     # Return full details including all history and notes for Admin view
-    return jsonify(patient.to_dict(
+    return ok(patient.to_dict(
         include_admin=True,
         include_history=True, 
         include_latest_prediction=True,
         include_notes=True
-    )), 200
+    ))
 
 
 @api_bp.route('/patients/<int:patient_id>', methods=['PUT'])
@@ -166,12 +193,12 @@ def update_patient(patient_id):
     try:
         data = PatientUpdateSchema(**request.json)
     except ValidationError as e:
-        return jsonify(error="Validation Failed", messages=e.errors()), 422
+        return unprocessable_entity(messages=e.errors())
 
     # Check for ABHA ID conflict if it's being changed
     if data.abha_id != patient.abha_id:
         if Patient.query.filter_by(abha_id=data.abha_id).first():
-            return jsonify(error="Conflict", message="Patient with this ABHA ID already exists"), 409
+            return conflict("Patient with this ABHA ID already exists")
     
     try:
         # Update mutable fields
@@ -186,9 +213,9 @@ def update_patient(patient_id):
         db.session.commit()
         current_app.logger.info(f"Patient {patient_id} updated by admin {get_current_admin_id()}")
         
-        return jsonify(message="Patient updated successfully", patient=patient.to_dict()), 200
+        return ok({"message": "Patient updated successfully", "patient": patient.to_dict()})
 
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(f"Error updating patient {patient_id}: {e}")
-        return jsonify(error="Internal server error"), 500
+        return server_error()

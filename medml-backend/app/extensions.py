@@ -14,5 +14,6 @@ cors = CORS()
 # Use get_remote_address as the key function
 limiter = Limiter(
     key_func=get_remote_address,
-    default_limits=["200 per day", "50 per hour"]
+    default_limits=["1000 per day", "200 per hour", "50 per minute"],
+    storage_uri="memory://"  # Use in-memory storage for development
 )

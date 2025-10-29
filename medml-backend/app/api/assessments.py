@@ -1,7 +1,8 @@
 # HealthCare App/medml-backend/app/api/assessments.py
 from flask import request, jsonify, current_app
 from . import api_bp
-from app.models import db, Patient
+from app.models import Patient
+from app.extensions import db
 from app.models import DiabetesAssessment, LiverAssessment, HeartAssessment, MentalHealthAssessment
 from app.schemas import (
     DiabetesAssessmentSchema, LiverAssessmentSchema, 
@@ -10,6 +11,7 @@ from app.schemas import (
 from app.api.decorators import admin_required, get_current_admin_id
 from pydantic import ValidationError
 from flask_jwt_extended import jwt_required
+from .responses import created, unprocessable_entity, server_error, ok
 
 def _create_assessment(patient_id, AssessmentModel, SchemaModel):
     """
@@ -22,7 +24,7 @@ def _create_assessment(patient_id, AssessmentModel, SchemaModel):
         # Validate incoming JSON data
         data = SchemaModel(**request.json)
     except ValidationError as e:
-        return jsonify(error="Validation Failed", messages=e.errors()), 422
+        return unprocessable_entity(messages=e.errors())
 
     # --- UPDATED: Always create a new assessment ---
     assessment = AssessmentModel(patient_id=patient_id, **data.model_dump())
@@ -34,7 +36,6 @@ def _create_assessment(patient_id, AssessmentModel, SchemaModel):
         
     db.session.add(assessment)
     message = f"{AssessmentModel.__name__} created successfully"
-    status_code = 201
 
     try:
         db.session.commit()
@@ -43,15 +44,15 @@ def _create_assessment(patient_id, AssessmentModel, SchemaModel):
         # Prediction is now handled by a separate call
         
         # Return the newly created assessment
-        return jsonify(
-            message=message, 
-            assessment=assessment.to_dict()
-        ), status_code
+        return created({
+            "message": message,
+            "assessment": assessment.to_dict(),
+        })
         
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(f"Error saving {AssessmentModel.__name__} for patient {patient_id}: {e}")
-        return jsonify(error="Internal server error"), 500
+        return server_error()
 
 # --- Public API Endpoints ---
 
@@ -107,4 +108,4 @@ def get_all_assessments(patient_id):
         "mental_health": [a.to_dict() for a in patient.mental_health_assessments],
     }
     
-    return jsonify(patient_id=patient_id, assessments=assessments_data), 200
+    return ok({"patient_id": patient_id, "assessments": assessments_data})

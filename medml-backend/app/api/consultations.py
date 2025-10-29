@@ -1,12 +1,14 @@
 # HealthCare App/medml-backend/app/api/consultations.py
 from flask import request, jsonify, current_app
 from . import api_bp
-from app.models import db, Patient, Consultation, ConsultationNote, User
+from app.models import Patient, Consultation, ConsultationNote, User
+from app.extensions import db
 from app.api.decorators import admin_required, get_current_admin_id
 from pydantic import BaseModel, constr
 from pydantic.error_wrappers import ValidationError
 from flask_jwt_extended import jwt_required
 from datetime import datetime, timedelta
+from .responses import created, bad_request, not_found, server_error, ok
 
 # --- UPDDATED: Schema removed, using direct JSON ---
 
@@ -26,11 +28,11 @@ def book_consultation():
     consultation_type = data.get('consultation_type') # 'teleconsultation' or 'in_person'
 
     if not all([patient_id, disease, consultation_type]):
-        return jsonify(error="Bad Request", message="Missing patient_id, disease, or consultation_type"), 400
+        return bad_request("Missing patient_id, disease, or consultation_type")
 
     patient = Patient.query.get(patient_id)
     if not patient:
-        return jsonify(error="Not Found", message="Patient not found"), 404
+        return not_found("Patient not found")
 
     # Create dummy data as per SRD
     dummy_datetime = datetime.now() + timedelta(days=7)
@@ -51,15 +53,15 @@ def book_consultation():
         db.session.commit()
         current_app.logger.info(f"Admin {admin_id} booked {consultation_type} for patient {patient_id}")
         
-        return jsonify(
-            message="Consultation booked successfully", 
-            consultation=new_consultation.to_dict()
-        ), 201
+        return created({
+            "message": "Consultation booked successfully",
+            "consultation": new_consultation.to_dict(),
+        })
     
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(f"Error booking consultation: {e}")
-        return jsonify(error="Internal server error", message="Could not book consultation."), 500
+        return server_error("Could not book consultation.")
 
 @api_bp.route('/consultations/patient/<int:patient_id>', methods=['GET'])
 @jwt_required()
@@ -70,7 +72,7 @@ def get_patient_consultations(patient_id):
     """
     patient = Patient.query.get_or_404(patient_id)
     consultations = [c.to_dict() for c in patient.consultations]
-    return jsonify(consultations=consultations), 200
+    return ok({"consultations": consultations})
 
 # --- ADDED: Endpoint for saving doctor notes ---
 
@@ -88,13 +90,14 @@ def add_consultation_note():
     try:
         data = NoteSchema(**request.json)
     except ValidationError as e:
-        return jsonify(error="Validation Failed", messages=e.errors()), 422
+        from .responses import unprocessable_entity
+        return unprocessable_entity(messages=e.errors())
     
     admin_id = get_current_admin_id()
     
     patient = Patient.query.get(data.patient_id)
     if not patient:
-        return jsonify(error="Not Found", message="Patient not found"), 404
+        return not_found("Patient not found")
         
     new_note = ConsultationNote(
         patient_id=data.patient_id,
@@ -107,12 +110,12 @@ def add_consultation_note():
         db.session.commit()
         current_app.logger.info(f"Admin {admin_id} added note for patient {data.patient_id}")
         
-        return jsonify(
-            message="Note added successfully", 
-            note=new_note.to_dict()
-        ), 201
+        return created({
+            "message": "Note added successfully",
+            "note": new_note.to_dict(),
+        })
     
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(f"Error adding note: {e}")
-        return jsonify(error="Internal server error", message="Could not add note."), 500
+        return server_error("Could not add note.")

@@ -13,7 +13,19 @@ from flask_jwt_extended import (
     get_jwt,
     get_jti
 )
+from .decorators import parse_jwt_identity
 from datetime import datetime # Added
+from .responses import (
+    ok,
+    created,
+    bad_request,
+    unauthorized,
+    forbidden,
+    not_found,
+    conflict,
+    unprocessable_entity,
+    server_error,
+)
 
 # Rate limiting to login endpoints
 LOGIN_LIMIT = "10 per minute"
@@ -28,14 +40,14 @@ def register_admin():
         data = UserRegisterSchema(**request.json)
     except ValidationError as e:
         if any('regex' in err['type'] for err in e.errors()):
-             return jsonify(error="Validation Failed", message=PASSWORD_ERROR_MSG), 422
-        return jsonify(error="Validation Failed", messages=e.errors()), 422
+            return unprocessable_entity(message=PASSWORD_ERROR_MSG)
+        return unprocessable_entity(messages=e.errors())
 
     if User.query.filter_by(email=data.email).first():
-        return jsonify(error="Conflict", message="Email already exists"), 409
+        return conflict("Email already exists")
     
     if data.username and User.query.filter_by(username=data.username).first():
-        return jsonify(error="Conflict", message="Username already exists"), 409
+        return conflict("Username already exists")
 
     new_user = User(
         name=data.name,
@@ -54,41 +66,49 @@ def register_admin():
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(f"Error registering admin: {e}")
-        return jsonify(error="Database error", message="Could not register admin."), 500
+        return server_error("Could not register admin.")
 
     current_app.logger.info(f"New admin registered: {new_user.email}")
-    return jsonify(message="Admin registered successfully", user=new_user.to_dict()), 201
+    return created({"message": "Admin registered successfully", "user": new_user.to_dict()})
 
 @api_bp.route('/auth/admin/login', methods=['POST'])
 @limiter.limit(LOGIN_LIMIT) # Apply rate limit
 def login_admin():
     """
-    Logs in an Admin (Healthcare Worker).
+    Logs in an Admin (Healthcare Worker) using username or email.
     """
     try:
-        data = UserLoginSchema(**request.json)
-    except ValidationError as e:
-        return jsonify(error="Validation Failed", messages=e.errors()), 422
+        data = request.json
+        username_or_email = data.get('username') or data.get('email')
+        password = data.get('password')
+        
+        if not username_or_email or not password:
+            return unprocessable_entity(message="Username/email and password are required")
+    except Exception:
+        return unprocessable_entity(message="Invalid request format")
 
-    user = User.query.filter_by(email=data.email).first()
+    # Try to find user by username first, then by email
+    user = User.query.filter_by(username=username_or_email).first()
+    if not user:
+        user = User.query.filter_by(email=username_or_email).first()
 
-    if user and user.check_password(data.password):
+    if user and user.check_password(password):
         # Create token with role identity
         identity = {"id": user.id, "role": user.role, "name": user.name}
         access_token = create_access_token(identity=identity)
         refresh_token = create_refresh_token(identity=identity)
         
-        current_app.logger.info(f"Admin login successful: {user.email}")
-        return jsonify(
-            message="Admin login successful",
-            access_token=access_token, 
-            refresh_token=refresh_token,
-            admin_id=user.id,
-            name=user.name
-        ), 200
+        current_app.logger.info(f"Admin login successful: {user.username or user.email}")
+        return ok({
+            "message": "Admin login successful",
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "admin_id": user.id,
+            "name": user.name,
+        })
     
-    current_app.logger.warning(f"Failed admin login attempt for email: {data.email[:3]}***")
-    return jsonify(error="Invalid credentials", message="Invalid email or password."), 401
+    current_app.logger.warning(f"Failed admin login attempt for: {username_or_email[:3]}***")
+    return unauthorized("Invalid username/email or password.")
 
 @api_bp.route('/auth/patient/login', methods=['POST'])
 @limiter.limit(LOGIN_LIMIT) # Apply rate limit
@@ -99,7 +119,7 @@ def login_patient():
     try:
         data = PatientLoginSchema(**request.json)
     except ValidationError as e:
-        return jsonify(error="Validation Failed", messages=e.errors()), 422
+        return unprocessable_entity(messages=e.errors())
 
     patient = Patient.query.filter_by(abha_id=data.abha_id).first()
 
@@ -110,16 +130,16 @@ def login_patient():
         refresh_token = create_refresh_token(identity=identity)
         
         current_app.logger.info(f"Patient login successful: {patient.abha_id}")
-        return jsonify(
-            message="Patient login successful",
-            access_token=access_token,
-            refresh_token=refresh_token,
-            patient_id=patient.id,
-            name=patient.name
-        ), 200
+        return ok({
+            "message": "Patient login successful",
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "patient_id": patient.id,
+            "name": patient.name,
+        })
     
     current_app.logger.warning(f"Failed patient login attempt for ABHA ID: {data.abha_id}")
-    return jsonify(error="Invalid credentials", message="Invalid ABHA ID or password."), 401
+    return unauthorized("Invalid ABHA ID or password.")
 
 
 @api_bp.route('/auth/refresh', methods=['POST'])
@@ -129,7 +149,7 @@ def refresh():
     Refreshes an access token.
     """
     try:
-        identity = get_jwt_identity()
+        identity = parse_jwt_identity()
         current_jti = get_jwt().get('jti')
         
         # Blocklist the used refresh token
@@ -140,14 +160,11 @@ def refresh():
         access_token = create_access_token(identity=identity)
         refresh_token = create_refresh_token(identity=identity)
         
-        return jsonify(
-            access_token=access_token,
-            refresh_token=refresh_token
-        ), 200
+        return ok({"access_token": access_token, "refresh_token": refresh_token})
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(f"Error refreshing token: {e}")
-        return jsonify(error="Token refresh failed"), 401
+        return unauthorized("Token refresh failed")
 
 
 @api_bp.route("/auth/logout", methods=["POST"])
@@ -160,15 +177,15 @@ def logout():
     jti = jwt_payload.get("jti")
     token_type = jwt_payload.get("type", "access")
     expires = datetime.fromtimestamp(jwt_payload.get("exp"))
-    identity = get_jwt_identity() or {}
+    identity = parse_jwt_identity() or {}
     try:
         db.session.add(TokenBlocklist(jti=jti, token_type=token_type, user_id=identity.get('id'), expires_at=expires))
         db.session.commit()
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(f"Failed to revoke token: {e}")
-        return jsonify(message="Failed to revoke token"), 500
-    return jsonify(message="Token successfully revoked"), 200
+        return server_error("Failed to revoke token")
+    return ok({"message": "Token successfully revoked"})
 
 
 @api_bp.route('/auth/me', methods=['GET'])
@@ -178,32 +195,32 @@ def get_me():
     Returns the profile of the currently authenticated user (Admin or Patient).
     """
     try:
-        jwt_identity = get_jwt_identity()
+        jwt_identity = parse_jwt_identity()
         user_id = jwt_identity.get('id')
         user_role = jwt_identity.get('role')
 
         if not user_id or not user_role:
-            return jsonify(error="Invalid token identity"), 401
+            return unauthorized("Invalid token identity")
 
         if user_role == 'admin':
             user = User.query.get(user_id)
             if not user:
-                 return jsonify(error="User not found"), 404
-            return jsonify(user.to_dict()), 200
+                return not_found("User not found")
+            return ok(user.to_dict())
         elif user_role == 'patient':
             patient = Patient.query.get(user_id)
             if not patient:
-                 return jsonify(error="Patient not found"), 404
+                return not_found("Patient not found")
             # Patient dashboard needs history and latest prediction
-            return jsonify(patient.to_dict(
+            return ok(patient.to_dict(
                 include_admin=True,
                 include_history=True, 
                 include_latest_prediction=True,
                 include_notes=True
-            )), 200
+            ))
         
-        return jsonify(error="Unknown user role"), 401
+        return unauthorized("Unknown user role")
         
     except Exception as e:
         current_app.logger.error(f"Error in /me endpoint: {e}")
-        return jsonify(error="Internal server error"), 500
+        return server_error()

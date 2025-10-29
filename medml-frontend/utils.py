@@ -1,14 +1,15 @@
 import streamlit as st
+from theme import create_risk_badge, create_metric_card
 
 def risk_color(level):
     """Returns a color based on risk level."""
     if level == "High":
-        return "red"
+        return "#ef4444"  # Red-500
     if level == "Medium":
-        return "yellow" # Changed from "orange" to match SRD
+        return "#f59e0b"  # Amber-500
     if level == "Low":
-        return "green"
-    return "gray"
+        return "#10b981"  # Emerald-500
+    return "#64748b"  # Slate-500
 
 def styled_metric(label, value, help_text=None):
     """Creates a styled metric card."""
@@ -37,13 +38,11 @@ def display_risk_table(risk_data):
     
     for item in data:
         level = item['Risk Level']
-        color = risk_color(level)
+        badge_html = create_risk_badge(level)
         st.markdown(f"""
-        <div style="display: flex; justify-content: space-between; align-items: center; border: 1px solid #eee; padding: 10px 15px; border-radius: 5px; margin-bottom: 8px;">
-            <span style="font-size: 1.1em; font-weight: 500;">{item['Disease']}</span>
-            <span style="color: {color}; background-color: {color}20; padding: 5px 10px; border-radius: 15px; font-weight: bold;">
-                {level.upper()}
-            </span>
+        <div class="card" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+            <span style="font-size: 1.1em; font-weight: 500; color: var(--text-primary);">{item['Disease']}</span>
+            {badge_html}
         </div>
         """, unsafe_allow_html=True)
 
@@ -68,9 +67,6 @@ def check_login(role=None):
     if role and st.session_state.get("user_role") != role:
         st.error(f"Access Denied. You must be a {role}.")
         st.switch_page("app.py")
-
-    # Add logout button to sidebar on every logged-in page
-    st.sidebar.button("Logout", on_click=logout, use_container_width=True, type="primary")
 
 
 INDIAN_STATES = [

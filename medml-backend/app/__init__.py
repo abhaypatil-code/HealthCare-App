@@ -28,6 +28,22 @@ def create_app(config_name='default'):
     
     # --- Load ML Models ---
     with app.app_context():
+        # Enable SQLite foreign key enforcement
+        try:
+            from sqlalchemy import event
+            from sqlalchemy.engine import Engine
+
+            @event.listens_for(Engine, "connect")
+            def set_sqlite_pragma(dbapi_connection, connection_record):
+                try:
+                    cursor = dbapi_connection.cursor()
+                    cursor.execute("PRAGMA foreign_keys=ON")
+                    cursor.close()
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
         services.load_models(app)
         # seed_static_recommendations() # <-- REMOVED
     # --- End ---
@@ -77,5 +93,18 @@ def create_app(config_name='default'):
         except Exception:
             # Fail closed: if error occurs, treat as revoked
             return True
+
+    # --- JWT Identity Callbacks for Dictionary Identities ---
+    @jwt.user_identity_loader
+    def user_identity_lookup(user):
+        """
+        Convert dictionary identity to string for JWT subject.
+        This allows us to use dictionary identities while maintaining JWT compatibility.
+        """
+        if isinstance(user, dict):
+            # Convert dict to a string representation that can be parsed back
+            return f"{user.get('id')}:{user.get('role')}:{user.get('name', '')}"
+        return str(user)
+
 
     return app
