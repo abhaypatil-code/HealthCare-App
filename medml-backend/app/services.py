@@ -18,10 +18,6 @@ models = {
     'liver': None,
     'mental_health': None
 }
-# --- FIX: Removed preprocessor dict ---
-# preprocessors = {
-#     'heart': None
-# }
 
 def load_model(app: Any, key: str, filename: str):
     """Loads a .pkl model from the models_store directory into a global dict."""
@@ -40,14 +36,11 @@ def load_models(app: Any):
     with app.app_context():
         app.logger.info(f"Loading models from: {MODEL_DIR}")
         
-        models['diabetes'] = load_model(app, 'diabetes', 'diabetes_XGBoost.pkl')
-        models['heart'] = load_model(app, 'heart', 'heart_best_model.pkl')
+        models['diabetes'] = load_model(app, 'diabetes', 'diabetes_LightGBM SMOTE.pkl')
+        models['heart'] = load_model(app, 'heart', 'heart_SVM Weighted Tuned.pkl')
         models['liver'] = load_model(app, 'liver', 'liver_LightGBM SMOTE.pkl')
         # Use depressiveness model as the main mental health model
-        models['mental_health'] = load_model(app, 'mental_health', 'mental_health_depressiveness.pkl')
-        
-        # --- FIX: Removed loading of the problematic preprocessor ---
-        # preprocessors['heart'] = load_model(app, 'heart_preprocessor', 'heart_preprocessor.pkl')
+        models['mental_health'] = load_model(app, 'mental_health', 'mental_health_depressiveness_Logistic Regression.pkl')
         
         app.logger.info("Model loading complete.")
         

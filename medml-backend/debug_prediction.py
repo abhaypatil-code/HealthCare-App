@@ -44,6 +44,10 @@ def test_prediction():
                 print(f"❌ {assessment_type} prediction failed: {e}")
                 import traceback
                 traceback.print_exc()
+        
+        print("\n--- Prediction Debug Summary ---")
+        print("Check the logs above for details.")
+
 
 if __name__ == "__main__":
     test_prediction()
