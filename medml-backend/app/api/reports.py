@@ -1,4 +1,3 @@
-# HealthCare App/medml-backend/app/api/reports.py
 from flask import request, jsonify, current_app, send_file
 from . import api_bp
 from app.models import Patient
@@ -10,6 +9,7 @@ from fpdf import FPDF
 from io import BytesIO
 from datetime import datetime
 from .responses import forbidden, bad_request, server_error
+import traceback
 
 class PDF(FPDF):
     def __init__(self):
@@ -68,7 +68,11 @@ class PDF(FPDF):
         
         # Table header
         self.set_font('Arial', 'B', 10)
-        col_width = self.w / 4.5
+        # Fix: Calculate column width based on printable width (page width - margins)
+        # Margins are 15 left, 15 right = 30 total
+        printable_width = self.w - 30
+        col_width = printable_width / 4
+        
         self.cell(col_width, 10, 'Disease', 1, 0, 'C')
         self.cell(col_width, 10, 'Risk Level', 1, 0, 'C')
         self.cell(col_width, 10, 'Score (0-1)', 1, 0, 'C')
@@ -161,6 +165,8 @@ def download_patient_report(patient_id):
     selected sections from the frontend.
     """
     try:
+        current_app.logger.info(f"Starting PDF generation for patient {patient_id}")
+        
         # 1. Check permissions
         from .decorators import parse_jwt_identity
         jwt_identity = parse_jwt_identity()
@@ -188,6 +194,7 @@ def download_patient_report(patient_id):
 
         # Section: Overview
         if "Overview" in sections:
+            current_app.logger.info("Adding Overview section...")
             pdf.chapter_title("Patient Information")
             overview_data = {
                 "Name": patient.name,
@@ -202,6 +209,7 @@ def download_patient_report(patient_id):
             pdf.chapter_body(overview_data)
 
             # Risk table for overview
+            current_app.logger.info("Adding Risk Table...")
             pdf.risk_table(risk_prediction)
 
         # Optional disease-specific sections: render headers if selected
@@ -216,6 +224,7 @@ def download_patient_report(patient_id):
             # Ensure risk table already shows overall numbers; can add small notes per disease
             for sec_key, sec_title in section_map:
                 if sec_key in sections:
+                    current_app.logger.info(f"Adding {sec_title} section...")
                     pdf.chapter_title(f"{sec_title} Details")
                     if risk_prediction:
                         level = getattr(risk_prediction, f"{sec_key.lower().replace(' ', '_')}_risk_level", None)
@@ -228,6 +237,7 @@ def download_patient_report(patient_id):
                         pdf.chapter_body({"Info": "No prediction data available."})
 
         # Recommendations section
+        current_app.logger.info("Generating recommendations...")
         try:
             if risk_prediction:
                 risk_map = {
@@ -243,9 +253,12 @@ def download_patient_report(patient_id):
             current_app.logger.warning(f"Failed to get AI recommendations: {e}")
             recs = {"diet": [], "exercise": [], "sleep": [], "lifestyle": []}
 
+        current_app.logger.info("Adding recommendations to PDF...")
         pdf.add_recommendations(recs)
 
-        # Output PDF to bytes
+        from io import BytesIO
+        from flask import send_file
+
         pdf_bytes = pdf.output(dest='S').encode('latin-1')
         buffer = BytesIO(pdf_bytes)
 
@@ -259,6 +272,9 @@ def download_patient_report(patient_id):
         )
 
     except Exception as e:
+        import traceback
+        with open("error.log", "w") as f:
+            f.write(traceback.format_exc())
         current_app.logger.error(f"Error generating report for patient {patient_id}: {e}")
         return server_error("Could not generate report.")
 
@@ -297,5 +313,3 @@ def share_patient_details(patient_id):
     except Exception as e:
         current_app.logger.error(f"Error generating share link for patient {patient_id}: {e}")
         return server_error("Could not generate share link.")
-
-    

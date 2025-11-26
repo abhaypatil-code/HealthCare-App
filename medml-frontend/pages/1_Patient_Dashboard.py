@@ -11,66 +11,76 @@ st.set_page_config(
     page_icon="👤"
 )
 
-# Apply enhanced light theme
+# --- Authentication Check ---
+if "token" not in st.session_state or st.session_state.get("user_role") != "patient":
+    st.warning("⚠️ Please log in to access your dashboard.")
+    if st.button("Go to Login"):
+        st.switch_page("app.py")
+    st.stop()
+
+# --- Layout & Data Loading ---
 apply_light_theme()
 
-utils.check_login(role="patient")
+user_name = st.session_state.get("user_name", "Patient")
+user_role = st.session_state.get("user_role", "Patient")
+create_navbar(user_name, user_role)
 
-# Create top navigation bar
-create_navbar(st.session_state.user_name, st.session_state.user_role)
+patient_id = st.session_state.get("user_id")
 
-# --- State Management ---
-if "patient_view" not in st.session_state:
-    st.session_state.patient_view = "overview"
-
-# Get patient data
-with st.spinner("Loading your health data..."):
-    patient_data = api_client.get_patient_details(st.session_state.user_id)
-    risk_data = api_client.get_latest_prediction(st.session_state.user_id)
-    recommendations = api_client.get_recommendations(st.session_state.user_id)
-
-if not patient_data:
-    st.error("Failed to load patient data. Please try logging in again.")
-    if st.button("Back to Login"):
+if not patient_id:
+    st.error("⚠️ User ID not found in session. Please log in again.")
+    if st.button("Go to Login", key="login_redirect_missing_id"):
         utils.logout()
     st.stop()
 
-# --- Page Header ---
-col1, col2 = st.columns([3, 1])
-with col1:
-    st.title(f"Welcome, {st.session_state.user_name}!")
-    st.markdown(f"**ABHA ID:** {patient_data.get('abha_id', 'N/A')} | **Patient ID:** {st.session_state.user_id}")
-with col2:
-    if st.button("Logout", use_container_width=True, type="secondary"):
-        utils.logout()
+# --- Header Section ---
+col_header_1, col_header_2 = st.columns([3, 1])
+with col_header_1:
+    st.title(f"Welcome back! 👋")
+with col_header_2:
+    if st.button("🔄 Refresh Data", use_container_width=True):
+        st.rerun()
+
+with st.spinner("Loading your health profile..."):
+    patient_data = api_client.get_patient_details(patient_id)
+    risk_data = api_client.get_latest_prediction(patient_id)
+    recommendations = api_client.get_recommendations(patient_id)
+
+if not patient_data:
+    st.error("❌ Could not load patient profile. Please try again later.")
+    if st.button("Retry Loading"):
+        st.rerun()
+    st.stop()
+
+# Update title with name after loading
+st.markdown(f"**Patient ID:** `{patient_data.get('patient_id', 'N/A')}`")
 
 st.divider()
 
-# --- Main Content Tabs ---
-tab_labels = ["📊 Overview", "🩺 Diabetes", "🫀 Liver", "❤️ Heart", "🧠 Mental Health"]
-tabs = st.tabs(tab_labels)
+# --- Tabs ---
+tabs = st.tabs(["Overview", "Diabetes", "Liver", "Heart", "Mental Health"])
 
-# --- Tab: Overview ---
 with tabs[0]:
-    st.header("📊 Your Health Overview")
-    
-    # Health Metrics
-    st.subheader("📏 Key Health Metrics")
+    # --- Key Metrics ---
+    st.subheader("📊 Health Overview")
     col1, col2, col3 = st.columns(3)
+
     with col1:
         create_metric_card(
-            "BMI", 
-            f"{patient_data.get('bmi', 0):.1f}", 
-            "Body Mass Index",
+            "Age", 
+            f"{patient_data.get('age', 'N/A')} years", 
+            "Your Age",
             "primary"
         )
+
     with col2:
         create_metric_card(
             "Height", 
-            f"{patient_data.get('height', 0):.0f} cm", 
+            f"{patient_data.get('height', 0)} cm",
             "Your Height",
             "primary"
         )
+
     with col3:
         create_metric_card(
             "Weight", 
