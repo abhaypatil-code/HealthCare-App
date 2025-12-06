@@ -6,7 +6,7 @@ PreventVance AI follows a decoupled Client-Server architecture, designed for sca
 
 ```mermaid
 graph TD
-    User[User (Healthcare Worker/Patient)] -->|HTTP Requests| Frontend[Streamlit Frontend]
+    User["User (Healthcare Worker/Patient)"] -->|HTTP Requests| Frontend[Streamlit Frontend]
     Frontend -->|REST API Calls| Backend[Flask Backend API]
     
     subgraph "Backend Services"
