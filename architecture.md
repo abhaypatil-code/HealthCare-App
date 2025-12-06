@@ -15,7 +15,7 @@ graph TD
         Backend -->|Consultation| AI[Google Gemini AI]
     end
     
-    ML -->|Load Models| Models[Model Store (.pkl)]
+    ML -->|Load Models| Models["Model Store (.pkl)"]
 ```
 
 ## Component Details
