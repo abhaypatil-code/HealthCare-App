@@ -105,6 +105,14 @@ def apply_light_theme():
     .main .block-container {{
         padding-top: 5rem;
     }}
+
+    /* HIDE SIDEBAR COMPLETELY */
+    [data-testid="stSidebar"] {{
+        display: none;
+    }}
+    section[data-testid="stSidebar"] {{
+        display: none;
+    }}
     
     /* --- Component Styling --- */
 
@@ -297,21 +305,45 @@ def apply_light_theme():
     </style>
     """, unsafe_allow_html=True)
 
-def create_navbar(user_name, user_role):
+
+def create_navbar(user_name, user_role, show_logout=True):
     """Create a top navigation bar for authenticated users."""
-    st.markdown(f"""
-    <div class="navbar">
-        <div style="display: flex; justify-content: space-between; align-items: center; max-width: 1200px; margin: 0 auto; padding: 0 1rem;">
-            <div class="navbar-brand">
+    
+    # Use standard Streamlit layout for the navbar to allow interactive buttons
+    # We use a container with a custom class to style it like a navbar
+    
+    with st.container():
+        st.markdown('<div class="navbar-spacer"></div>', unsafe_allow_html=True) # Spacer for fixed header
+        
+        col1, col2, col3 = st.columns([2, 4, 1.5])
+        
+        with col1:
+            st.markdown(f"""
+            <div style="font-size: 1.5rem; font-weight: 700; color: {THEME_COLORS['primary']}; display: flex; align-items: center; height: 100%;">
                 🩺 HealthCare System
             </div>
-            <div class="navbar-nav">
-                <span style="color: var(--color-text-secondary); font-weight: 500;">{user_name}</span>
-                <span style="background: var(--color-primary); color: white; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.8rem; font-weight: 500;">{user_role.title()}</span>
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
+            
+        with col3:
+            # User profile and logout
+            if user_name and user_role:
+                sub_c1, sub_c2 = st.columns([3, 1])
+                with sub_c1:
+                     st.markdown(f"""
+                        <div style="text-align: right; line-height: 1.2;">
+                            <span style="font-weight: 600; font-size: 0.9rem; color: {THEME_COLORS['text_primary']};">{user_name}</span><br>
+                            <span style="font-size: 0.75rem; color: {THEME_COLORS['text_secondary']}; background: {THEME_COLORS['primary_light']}; padding: 2px 8px; border-radius: 10px;">{user_role.title()}</span>
+                        </div>
+                    """, unsafe_allow_html=True)
+                
+                with sub_c2:
+                    if show_logout:
+                        if st.button("Logout", key="navbar_logout", type="secondary", use_container_width=True):
+                            # Circular import workaround or just clear session
+                            st.session_state.clear()
+                            st.rerun()
+
+        st.markdown("""<hr style="margin: 0.5rem 0 1rem 0; padding: 0;">""", unsafe_allow_html=True)
 
 def create_metric_card(label, value, help_text=None, color="primary"):
     """Create a styled metric card."""

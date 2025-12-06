@@ -226,11 +226,20 @@ elif st.session_state.admin_view == "add_user":
         
         st.divider()
         
+        st.divider()
+        
         # Finish Survey button
+        any_done = any(status.values())
         all_done = all(status.values())
-        if all_done:
-            st.success("🎉 All assessments are complete!")
+        
+        if any_done:
+            if not all_done:
+                st.info("ℹ️ You can proceed with the analysis now, or complete the remaining assessments for a more comprehensive report.")
+            else:
+                st.success("🎉 All assessments are complete!")
+            
             st.markdown("You can now run the AI-powered risk analysis for this patient.")
+            
             if st.button("✅ Complete Registration & Run Analysis", use_container_width=True, type="primary"):
                 with st.spinner("🤖 Running AI-powered risk analysis... This may take a moment."):
                     result = api_client.trigger_prediction(patient_id)
@@ -246,8 +255,7 @@ elif st.session_state.admin_view == "add_user":
                     reset_add_user_flow()
                     st.rerun()
         else:
-            incomplete = [title for key, icon, title, col in assessments if not status[key]]
-            st.warning(f"Please complete all assessments to proceed: **{', '.join(incomplete)}**")
+            st.warning("⚠️ Please complete at least one assessment to proceed.")
 
     # --- Step 3: Individual Forms ---
     def render_assessment_form(name, fields, api_key, icon):
@@ -455,22 +463,64 @@ elif st.session_state.admin_view == "view_patients":
     else:
         st.markdown(f"**Found {len(patients)} patients**")
         
-        # Display patients as clean, native Streamlit components
-        for p in patients:
-            with st.container():
-                st.markdown("---") # Visual separator
-                col1, col2, col3 = st.columns([4, 1, 1])
-                
-                with col1:
-                    st.markdown(
-                        f"<h4 style='margin: 0; color: var(--color-primary);'>👤 {p.get('name', 'N/A').title()}</h4>", 
-                        unsafe_allow_html=True
-                    )
-                    st.markdown(
-                        f"**ABHA ID:** {p.get('abha_id', 'N/A')} | **Age:** {p.get('age', 'N/A')} | **Gender:** {p.get('gender', 'N/A')}"
-                    )
+        # Display patients in a modern grid layout
+        
+        # CSS for cards
+        st.markdown("""
+        <style>
+        .patient-card {
+            background-color: white;
+            padding: 1.5rem;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            border: 1px solid #f0f0f0;
+            transition: transform 0.2s;
+            height: 100%;
+        }
+        .patient-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.1);
+        }
+        .patient-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        .patient-name {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--color-primary-dark);
+            margin: 0;
+        }
+        .patient-meta {
+            font-size: 0.9rem;
+            color: #666;
+            margin-bottom: 0.5rem;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+        
+        # Grid layout for patients
+        cols = st.columns(3)
+        for i, p in enumerate(patients):
+            with cols[i % 3]:
+                with st.container():
+                    # Card Start
+                    st.markdown(f"""
+                    <div class="patient-card">
+                        <div class="patient-header">
+                            <h4 class="patient-name">👤 {p.get('name', 'N/A').title()}</h4>
+                        </div>
+                        <div class="patient-meta">
+                            <strong>ID:</strong> {p.get('patient_id')} <br>
+                            <strong>ABHA:</strong> {p.get('abha_id', 'N/A')} <br>
+                            <strong>Age/Sex:</strong> {p.get('age', 'N/A')} / {p.get('gender', 'N/A')}
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
                     
-                    # Display risk pill if filtered
+                    # Live Risk Badge (if filtered)
                     if st.session_state.patient_category != "All Users":
                         category_key_map = {
                             "diabetes": "diabetes_risk_level", "liver": "liver_risk_level",
@@ -480,24 +530,28 @@ elif st.session_state.admin_view == "view_patients":
                         risk_key = category_key_map.get(cat_lower, "")
                         level = p.get('latest_prediction', {}).get(risk_key, 'N/A')
                         st.markdown(utils.create_risk_badge(level), unsafe_allow_html=True)
-                
-                with col2:
-                    st.button(
-                        "✏️ Edit",
-                        key=f"edit_{p['patient_id']}",
-                        on_click=go_to_edit_patient,
-                        args=(p['patient_id'],),
-                        use_container_width=True
-                    )
-                with col3:
-                    st.button(
-                        "👁️ View Profile",
-                        key=f"view_{p['patient_id']}",
-                        on_click=go_to_patient_detail,
-                        args=(p['patient_id'],),
-                        use_container_width=True,
-                        type="primary"
-                    )
+                    
+                    # Action Buttons
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        st.button(
+                            "✏️ Edit",
+                            key=f"edit_{p['patient_id']}",
+                            on_click=go_to_edit_patient,
+                            args=(p['patient_id'],),
+                            use_container_width=True
+                        )
+                    with c2:
+                         st.button(
+                            "👁️ Profile",
+                            key=f"view_{p['patient_id']}",
+                            on_click=go_to_patient_detail,
+                            args=(p['patient_id'],),
+                            use_container_width=True,
+                            type="primary"
+                        )
+                    
+                    st.markdown("<div style='margin-bottom: 1rem;'></div>", unsafe_allow_html=True) # Spacer
 
 # --- View: Patient Detail ---
 elif st.session_state.admin_view == "patient_detail":

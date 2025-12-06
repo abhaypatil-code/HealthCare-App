@@ -63,31 +63,66 @@ tabs = st.tabs(["Overview", "Diabetes", "Liver", "Heart", "Mental Health"])
 with tabs[0]:
     # --- Key Metrics ---
     st.subheader("📊 Health Overview")
+    
+    # CSS for metric cards
+    st.markdown("""
+    <style>
+    .metric-container {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: white;
+        padding: 1rem;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        border: 1px solid #eee;
+    }
+    .metric-value {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--color-primary);
+    }
+    .metric-label {
+        font-size: 0.9rem;
+        color: #666;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        create_metric_card(
-            "Age", 
-            f"{patient_data.get('age', 'N/A')} years", 
-            "Your Age",
-            "primary"
-        )
+        st.markdown(f"""
+        <div class="metric-container">
+            <div>
+                <div class="metric-label">Age</div>
+                <div class="metric-value">{patient_data.get('age', 'N/A')} <span style="font-size: 0.8rem; color: #888;">yrs</span></div>
+            </div>
+            <div style="font-size: 1.5rem;">🎂</div>
+        </div>
+        """, unsafe_allow_html=True)
 
     with col2:
-        create_metric_card(
-            "Height", 
-            f"{patient_data.get('height', 0)} cm",
-            "Your Height",
-            "primary"
-        )
+        st.markdown(f"""
+        <div class="metric-container">
+            <div>
+                <div class="metric-label">Height</div>
+                <div class="metric-value">{patient_data.get('height', 0)} <span style="font-size: 0.8rem; color: #888;">cm</span></div>
+            </div>
+            <div style="font-size: 1.5rem;">📏</div>
+        </div>
+        """, unsafe_allow_html=True)
 
     with col3:
-        create_metric_card(
-            "Weight", 
-            f"{patient_data.get('weight', 0):.1f} kg", 
-            "Your Weight",
-            "primary"
-        )
+        st.markdown(f"""
+        <div class="metric-container">
+            <div>
+                <div class="metric-label">Weight</div>
+                <div class="metric-value">{(patient_data.get('weight') or 0):.1f} <span style="font-size: 0.8rem; color: #888;">kg</span></div>
+            </div>
+            <div style="font-size: 1.5rem;">⚖️</div>
+        </div>
+        """, unsafe_allow_html=True)
     
     st.divider()
     
@@ -96,7 +131,7 @@ with tabs[0]:
     
     # Retry Prediction Section (if no risk data available)
     if not risk_data:
-        st.warning("⚠️ No risk assessment data found. Please contact your healthcare worker to complete your assessments.")
+        st.info("ℹ️ Risk assessment data is pending. Please complete your health assessments or contact your healthcare worker.")
     
     st.divider()
 
@@ -246,7 +281,7 @@ def render_disease_tab(disease_name, risk_key, score_key, icon):
         return
     
     risk_level = risk_data.get(risk_key, 'N/A')
-    risk_score = risk_data.get(score_key, 0)
+    risk_score = risk_data.get(score_key) or 0
     
     # Risk Score Display
     st.subheader("📊 Your Risk Score")

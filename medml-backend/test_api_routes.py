@@ -28,7 +28,7 @@ def test_api():
         if resp.status_code == 200:
             print(f"✅ Get Patients Successful: {len(resp.json().get('data', []))} patients found")
             patients = resp.json().get('data', [])
-            patient_id = patients[0]['id'] if patients else 62
+            patient_id = patients[0]['patient_id'] if patients else 62
         else:
             print(f"❌ Get Patients Failed: {resp.status_code} - {resp.text}")
             patient_id = 62

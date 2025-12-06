@@ -185,7 +185,7 @@ desktop.ini
 $RECYCLE.BIN/
 
 # Streamlit specific
-.streamlit/
+# .streamlit/
 
 # Jupyter Notebook checkpoints
 .ipynb_checkpoints/
